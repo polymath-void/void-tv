@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VoidTV</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- HUD Top Header -->
+  <header class="hud-header">
+    <div class="hud-left">
+      <span class="hud-badge">VOID.TV</span>
+      <span class="hud-model" id="hud-model">SINGER R3</span>
+    </div>
+    <div class="hud-center">
+      <span class="hud-clock" id="hud-clock">00:00</span>
+      <span class="hud-date" id="hud-date">Thu, Nov 19</span>
+    </div>
+    <div class="hud-right">
+      <span class="hud-stat" id="hud-ram">RAM: --MB</span>
+      <span class="hud-stat" id="hud-status">PORT: 4444</span>
+    </div>
+  </header>
+
+  <!-- Main Leanback TV Rows Container -->
+  <main class="tv-container" id="tv-container">
+    <!-- Dynamic sections injected via app.js -->
+  </main>
+
+  <!-- Live Hot-Reload Notification Toast -->
+  <div class="toast" id="toast">Live Reload Active</div>
+
+  <script src="app.js"></script>
+</body>
+</html>

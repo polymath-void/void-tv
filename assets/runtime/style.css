@@ -1,0 +1,212 @@
+:root {
+  --bg: #000000;
+  --surface: #0a0a0f;
+  --surface-focus: #151522;
+  --border: #1a1a24;
+  --accent: #00e5ff;
+  --accent-glow: rgba(0, 229, 255, 0.45);
+  --text-main: #ffffff;
+  --text-dim: #71717a;
+  --focus-scale: 1.08;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--bg);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", monospace, sans-serif;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* HUD Header */
+.hud-header {
+  height: 64px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 48px;
+  background: linear-gradient(180deg, rgba(10, 10, 15, 0.9) 0%, rgba(0,0,0,0) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.hud-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hud-badge {
+  background: var(--accent);
+  color: #000000;
+  font-weight: 900;
+  font-size: 14px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  letter-spacing: 1.5px;
+}
+
+.hud-model {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-family: monospace;
+}
+
+.hud-center {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.hud-clock {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-main);
+  font-family: monospace;
+}
+
+.hud-date {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.hud-right {
+  display: flex;
+  gap: 16px;
+}
+
+.hud-stat {
+  font-size: 13px;
+  color: var(--accent);
+  font-family: monospace;
+  background: rgba(0, 229, 255, 0.08);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 229, 255, 0.2);
+}
+
+/* TV Rows Container */
+.tv-container {
+  flex: 1;
+  padding: 24px 48px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+/* Horizontal Cards Row */
+.row-cards {
+  display: flex;
+  gap: 20px;
+  overflow-x: visible;
+  padding: 8px 0;
+}
+
+.card {
+  width: 200px;
+  height: 120px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2), border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 20px;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+/* Compact Chips Row */
+.row-chips {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 12px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: transform 0.15s cubic-bezier(0.2, 0.9, 0.3, 1.2), border-color 0.15s ease;
+}
+
+/* Active D-Pad Focus State */
+.focused {
+  transform: scale(var(--focus-scale));
+  border-color: var(--accent) !important;
+  background: var(--surface-focus) !important;
+  box-shadow: 0 0 24px var(--accent-glow);
+  outline: none;
+  z-index: 10;
+}
+
+.focused .card-title, .focused.chip {
+  color: var(--text-main);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 36px;
+  background: var(--accent);
+  color: #000;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 18px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  font-family: monospace;
+}
+
+.toast.show {
+  opacity: 1;
+}

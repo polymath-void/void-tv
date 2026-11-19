@@ -1,0 +1,38 @@
+{
+  "theme": {
+    "accent": "#00e5ff",
+    "glowColor": "rgba(0, 229, 255, 0.45)",
+    "focusScale": 1.08
+  },
+  "sections": [
+    {
+      "id": "favorites",
+      "title": "FAVORITE APPS",
+      "type": "cards",
+      "items": [
+        { "label": "YouTube", "pkg": "com.google.android.youtube.tv", "icon": "▶" },
+        { "label": "Netflix", "pkg": "com.netflix.ninja", "icon": "N" },
+        { "label": "Prime Video", "pkg": "com.amazon.amazonvideo.livingroom", "icon": "P" },
+        { "label": "Live TV", "pkg": "com.apps.livetv", "icon": "📺" },
+        { "label": "Media Player", "pkg": "com.apps.usbmediaplayer", "icon": "📁" },
+        { "label": "Settings", "action": "settings", "icon": "⚙" }
+      ]
+    },
+    {
+      "id": "inputs",
+      "title": "INPUT SOURCES",
+      "type": "chips",
+      "items": [
+        { "label": "HDMI 1", "action": "input:HDMI1" },
+        { "label": "HDMI 2", "action": "input:HDMI2" },
+        { "label": "AV / Composite", "action": "input:AV" }
+      ]
+    },
+    {
+      "id": "all_apps",
+      "title": "ALL APPLICATIONS",
+      "type": "cards",
+      "dynamic": "installed"
+    }
+  ]
+}
