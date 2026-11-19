@@ -27,6 +27,20 @@
     <!-- Dynamic sections injected via app.js -->
   </main>
 
+  <!-- In-App File Manager Overlay -->
+  <div class="fm-overlay" id="fm-overlay" style="display: none;">
+    <div class="fm-header">
+      <div class="fm-title">📁 FILE MANAGER</div>
+      <div class="fm-path" id="fm-path">/storage/emulated/0</div>
+      <button class="fm-close-btn" id="fm-close-btn">✕ EXIT (BACK)</button>
+    </div>
+    <div class="fm-body" id="fm-body">
+      <div class="fm-grid" id="fm-grid">
+        <!-- Injected dynamically by FileManager -->
+      </div>
+    </div>
+  </div>
+
   <!-- Live Hot-Reload Notification Toast -->
   <div class="toast" id="toast">Live Reload Active</div>
 

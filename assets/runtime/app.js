@@ -1,11 +1,11 @@
-// VoidTV Runtime & 2D Spatial Focus Engine with Real Icons
+// VoidTV Runtime & 2D Spatial Focus Engine with In-App Browser & File Manager
 (function () {
-  let focusMatrix = []; // 2D array of focusable DOM elements
+  let focusMatrix = [];
   let currentRow = 0;
   let currentCol = 0;
   let installedApps = [];
+  let currentMode = 'LAUNCHER'; // 'LAUNCHER' or 'FILE_MANAGER'
 
-  // Default layout configuration
   let config = {
     theme: {
       accent: "#00e5ff",
@@ -22,7 +22,16 @@
           { label: "Netflix", pkg: "com.netflix.ninja", icon: "N" },
           { label: "Prime Video", pkg: "com.amazon.amazonvideo.livingroom", icon: "P" },
           { label: "Live TV", pkg: "com.apps.livetv", icon: "📺" },
-          { label: "Media Player", pkg: "com.apps.usbmediaplayer", icon: "📁" },
+          { label: "Media Player", pkg: "com.apps.usbmediaplayer", icon: "📁" }
+        ]
+      },
+      {
+        id: "tools",
+        title: "VOID SYSTEM TOOLS",
+        type: "cards",
+        items: [
+          { label: "Web Browser", action: "browser", icon: "🌐" },
+          { label: "File Manager", action: "files", icon: "📁" },
           { label: "Settings", action: "settings", icon: "⚙" }
         ]
       },
@@ -38,14 +47,14 @@
       },
       {
         id: "all_apps",
-        title: "INSTALLED APPLICATIONS",
+        title: "ALL APPLICATIONS",
         type: "cards",
         dynamic: "installed"
       }
     ]
   };
 
-  // Clock & Telemetry updater
+  // Clock & Telemetry
   function initClock() {
     function update() {
       const now = new Date();
@@ -73,13 +82,12 @@
     update();
   }
 
-  // Render UI rows
+  // Render Home Launcher
   function renderLayout() {
     const container = document.getElementById('tv-container');
     container.innerHTML = '';
     focusMatrix = [];
 
-    // Query installed apps from Android bridge if available
     if (window.Android && window.Android.getInstalledApps) {
       try {
         installedApps = JSON.parse(window.Android.getInstalledApps());
@@ -108,13 +116,10 @@
           icon: a.icon || (a.label ? a.label.substring(0, 1).toUpperCase() : '✦')
         }));
       } else {
-        // Enrich favorites with real app icons if available
         items.forEach(item => {
           if (item.pkg) {
             const found = installedApps.find(a => a.packageName === item.pkg);
-            if (found && found.icon) {
-              item.icon = found.icon;
-            }
+            if (found && found.icon) item.icon = found.icon;
           }
         });
       }
@@ -124,14 +129,12 @@
         const el = document.createElement('div');
         if (section.type === 'cards') {
           el.className = 'card';
-          
           let iconHtml = '';
           if (item.icon && item.icon.startsWith('data:image/')) {
             iconHtml = `<img class="card-icon-img" src="${item.icon}" alt="">`;
           } else {
             iconHtml = `<div class="card-icon-char">${item.icon || '✦'}</div>`;
           }
-
           el.innerHTML = `
             <div class="card-icon">${iconHtml}</div>
             <div class="card-title">${item.label}</div>
@@ -153,11 +156,21 @@
       }
     });
 
-    updateFocus();
+    if (currentMode === 'LAUNCHER') {
+      updateFocus();
+    }
   }
 
   function executeAction(item) {
-    if (item.action === 'settings') {
+    if (item.action === 'browser') {
+      if (window.Android && window.Android.openBrowser) {
+        window.Android.openBrowser("https://duckduckgo.com");
+      } else {
+        showToast("Opening Browser...");
+      }
+    } else if (item.action === 'files') {
+      window.FileManager.open();
+    } else if (item.action === 'settings') {
       if (window.Android && window.Android.openSettings) {
         window.Android.openSettings();
       } else {
@@ -199,9 +212,193 @@
     setTimeout(() => toast.classList.remove('show'), 2000);
   }
 
-  // 2D Focus Navigation Engine
+  // File Manager Engine
+  window.FileManager = {
+    currentPath: '/storage/emulated/0',
+    items: [],
+    fmMatrix: [], // 2D grid matrix of file elements (4 columns)
+    fmRow: 0,
+    fmCol: 0,
+
+    open: function (targetPath) {
+      currentMode = 'FILE_MANAGER';
+      document.getElementById('fm-overlay').style.display = 'flex';
+      this.currentPath = targetPath || '/storage/emulated/0';
+      this.loadDirectory(this.currentPath);
+    },
+
+    close: function () {
+      document.getElementById('fm-overlay').style.display = 'none';
+      currentMode = 'LAUNCHER';
+      updateFocus();
+    },
+
+    loadDirectory: function (path) {
+      this.currentPath = path;
+      document.getElementById('fm-path').textContent = path;
+      const grid = document.getElementById('fm-grid');
+      grid.innerHTML = '';
+      this.fmMatrix = [];
+      this.items = [];
+
+      let raw = "[]";
+      if (window.Android && window.Android.listDirectory) {
+        raw = window.Android.listDirectory(path);
+      }
+      try {
+        this.items = JSON.parse(raw);
+      } catch (e) {
+        this.items = [];
+      }
+
+      // Add parent directory navigation card if not at root
+      if (this.currentPath !== '/storage/emulated/0' && this.currentPath !== '/') {
+        this.items.unshift({
+          name: ".. [Parent Directory]",
+          path: this.getParentPath(this.currentPath),
+          isDir: true,
+          formattedSize: "Folder"
+        });
+      }
+
+      const elements = [];
+      this.items.forEach((item) => {
+        const div = document.createElement('div');
+        div.className = 'fm-item';
+
+        let icon = '📄';
+        if (item.isDir) {
+          icon = item.name.startsWith('..') ? '⬆️' : '📁';
+        } else {
+          const ext = item.ext || '';
+          if (['mp4', 'mkv', 'avi', 'mov'].includes(ext)) icon = '🎬';
+          else if (['mp3', 'wav', 'flac', 'aac'].includes(ext)) icon = '🎵';
+          else if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) icon = '🖼️';
+          else if (['apk'].includes(ext)) icon = '📦';
+          else if (['txt', 'json', 'log', 'sh', 'py'].includes(ext)) icon = '📝';
+        }
+
+        div.innerHTML = `
+          <div class="fm-item-icon">${icon}</div>
+          <div class="fm-item-details">
+            <div class="fm-item-name">${item.name}</div>
+            <div class="fm-item-size">${item.formattedSize || ''}</div>
+          </div>
+        `;
+
+        div.addEventListener('click', () => {
+          this.onItemClick(item);
+        });
+
+        grid.appendChild(div);
+        elements.push(div);
+      });
+
+      // Construct 4-column 2D focus matrix
+      const cols = 4;
+      for (let i = 0; i < elements.length; i += cols) {
+        this.fmMatrix.push(elements.slice(i, i + cols));
+      }
+
+      this.fmRow = 0;
+      this.fmCol = 0;
+      this.updateFmFocus();
+    },
+
+    getParentPath: function (path) {
+      const idx = path.lastIndexOf('/');
+      if (idx <= 0) return '/';
+      return path.substring(0, idx);
+    },
+
+    onItemClick: function (item) {
+      if (item.isDir) {
+        this.loadDirectory(item.path);
+      } else {
+        if (window.Android && window.Android.openFile) {
+          const ok = window.Android.openFile(item.path);
+          if (!ok) showToast("Could not open " + item.name);
+        } else {
+          showToast("Opening file: " + item.name);
+        }
+      }
+    },
+
+    updateFmFocus: function () {
+      document.querySelectorAll('.focused').forEach(el => el.classList.remove('focused'));
+      if (this.fmMatrix.length === 0) return;
+
+      if (this.fmRow < 0) this.fmRow = 0;
+      if (this.fmRow >= this.fmMatrix.length) this.fmRow = this.fmMatrix.length - 1;
+
+      const row = this.fmMatrix[this.fmRow];
+      if (this.fmCol < 0) this.fmCol = 0;
+      if (this.fmCol >= row.length) this.fmCol = row.length - 1;
+
+      const active = row[this.fmCol];
+      if (active) {
+        active.classList.add('focused');
+        active.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    },
+
+    onKey: function (key) {
+      if (this.fmMatrix.length === 0) return;
+
+      switch (key) {
+        case 'UP':
+          if (this.fmRow > 0) {
+            this.fmRow--;
+            this.fmCol = Math.min(this.fmCol, this.fmMatrix[this.fmRow].length - 1);
+            this.updateFmFocus();
+          }
+          break;
+        case 'DOWN':
+          if (this.fmRow < this.fmMatrix.length - 1) {
+            this.fmRow++;
+            this.fmCol = Math.min(this.fmCol, this.fmMatrix[this.fmRow].length - 1);
+            this.updateFmFocus();
+          }
+          break;
+        case 'LEFT':
+          if (this.fmCol > 0) {
+            this.fmCol--;
+            this.updateFmFocus();
+          }
+          break;
+        case 'RIGHT':
+          if (this.fmCol < this.fmMatrix[this.fmRow].length - 1) {
+            this.fmCol++;
+            this.updateFmFocus();
+          }
+          break;
+        case 'SELECT':
+          const active = this.fmMatrix[this.fmRow][this.fmCol];
+          if (active) active.click();
+          break;
+        case 'BACK':
+          if (this.currentPath !== '/storage/emulated/0' && this.currentPath !== '/') {
+            this.loadDirectory(this.getParentPath(this.currentPath));
+          } else {
+            this.close();
+          }
+          break;
+      }
+    }
+  };
+
+  document.getElementById('fm-close-btn').addEventListener('click', () => {
+    window.FileManager.close();
+  });
+
+  // Global D-Pad Dispatcher
   window.FocusEngine = {
     onKey: function (key) {
+      if (currentMode === 'FILE_MANAGER') {
+        window.FileManager.onKey(key);
+        return;
+      }
+
       if (focusMatrix.length === 0) return;
 
       switch (key) {
@@ -283,7 +480,6 @@
     }
   });
 
-  // Boot UI
   initClock();
   renderLayout();
 })();

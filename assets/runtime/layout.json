@@ -14,7 +14,16 @@
         { "label": "Netflix", "pkg": "com.netflix.ninja", "icon": "N" },
         { "label": "Prime Video", "pkg": "com.amazon.amazonvideo.livingroom", "icon": "P" },
         { "label": "Live TV", "pkg": "com.apps.livetv", "icon": "📺" },
-        { "label": "Media Player", "pkg": "com.apps.usbmediaplayer", "icon": "📁" },
+        { "label": "Media Player", "pkg": "com.apps.usbmediaplayer", "icon": "📁" }
+      ]
+    },
+    {
+      "id": "tools",
+      "title": "VOID SYSTEM TOOLS",
+      "type": "cards",
+      "items": [
+        { "label": "Web Browser", "action": "browser", "icon": "🌐" },
+        { "label": "File Manager", "action": "files", "icon": "📁" },
         { "label": "Settings", "action": "settings", "icon": "⚙" }
       ]
     },

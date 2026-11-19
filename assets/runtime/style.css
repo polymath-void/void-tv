@@ -197,9 +197,108 @@ body {
   z-index: 10;
 }
 
-.focused .card-title, .focused.chip {
+.focused .card-title, .focused.chip, .focused .fm-item-name {
   color: var(--text-main);
   text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+/* In-App File Manager Overlay */
+.fm-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000000;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.fm-header {
+  height: 64px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 48px;
+  background: #0a0a10;
+  border-bottom: 1px solid #1a1a24;
+}
+
+.fm-title {
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+}
+
+.fm-path {
+  font-family: monospace;
+  font-size: 14px;
+  color: #a1a1aa;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fm-close-btn {
+  background: #181824;
+  border: 1px solid #27273a;
+  color: #fff;
+  padding: 6px 16px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.fm-body {
+  flex: 1;
+  padding: 28px 48px;
+  overflow-y: auto;
+}
+
+.fm-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.fm-item {
+  background: #0c0c14;
+  border: 1px solid #1c1c28;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.fm-item-icon {
+  font-size: 26px;
+  width: 40px;
+  text-align: center;
+}
+
+.fm-item-details {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fm-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fm-item-size {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: monospace;
+  margin-top: 2px;
 }
 
 /* Toast */
@@ -217,6 +316,7 @@ body {
   transition: opacity 0.3s ease;
   pointer-events: none;
   font-family: monospace;
+  z-index: 200;
 }
 
 .toast.show {
