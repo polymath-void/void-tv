@@ -4,25 +4,59 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.media.tv.TvInputInfo;
-import android.media.tv.TvInputManager;
-import android.net.Uri;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
-import android.os.BatteryManager;
-import android.content.IntentFilter;
+import android.util.Base64;
 import android.webkit.JavascriptInterface;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class TvBridge {
     private final Context context;
+    private final Map<String, String> iconCache = new HashMap<>();
 
     public TvBridge(Context context) {
         this.context = context;
+    }
+
+    private String extractIconBase64(PackageManager pm, String packageName, Drawable icon) {
+        if (iconCache.containsKey(packageName)) {
+            return iconCache.get(packageName);
+        }
+        try {
+            if (icon == null) {
+                icon = pm.getApplicationIcon(packageName);
+            }
+            Bitmap bitmap;
+            if (icon instanceof BitmapDrawable) {
+                bitmap = ((BitmapDrawable) icon).getBitmap();
+            } else {
+                int w = icon.getIntrinsicWidth() > 0 ? Math.min(icon.getIntrinsicWidth(), 128) : 96;
+                int h = icon.getIntrinsicHeight() > 0 ? Math.min(icon.getIntrinsicHeight(), 128) : 96;
+                bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                Canvas canvas = new Canvas(bitmap);
+                icon.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+                icon.draw(canvas);
+            }
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 85, baos);
+            String base64 = "data:image/png;base64," + Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+            iconCache.put(packageName, base64);
+            return base64;
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     @JavascriptInterface
@@ -42,15 +76,34 @@ public class TvBridge {
         if (list != null) {
             for (ResolveInfo info : list) {
                 try {
+                    String pkg = info.activityInfo.packageName;
                     JSONObject obj = new JSONObject();
                     obj.put("label", info.loadLabel(pm).toString());
-                    obj.put("packageName", info.activityInfo.packageName);
+                    obj.put("packageName", pkg);
                     obj.put("activityName", info.activityInfo.name);
+
+                    // Extract actual high-res application icon
+                    String iconBase64 = extractIconBase64(pm, pkg, info.loadIcon(pm));
+                    obj.put("icon", iconBase64);
+
                     array.put(obj);
                 } catch (Exception ignored) {}
             }
         }
         return array.toString();
+    }
+
+    @JavascriptInterface
+    public String getAppIcon(String packageName) {
+        if (iconCache.containsKey(packageName)) {
+            return iconCache.get(packageName);
+        }
+        try {
+            PackageManager pm = context.getPackageManager();
+            return extractIconBase64(pm, packageName, null);
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     @JavascriptInterface

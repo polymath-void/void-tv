@@ -1,4 +1,4 @@
-// VoidTV Runtime & 2D Spatial Focus Engine
+// VoidTV Runtime & 2D Spatial Focus Engine with Real Icons
 (function () {
   let focusMatrix = []; // 2D array of focusable DOM elements
   let currentRow = 0;
@@ -22,6 +22,7 @@
           { label: "Netflix", pkg: "com.netflix.ninja", icon: "N" },
           { label: "Prime Video", pkg: "com.amazon.amazonvideo.livingroom", icon: "P" },
           { label: "Live TV", pkg: "com.apps.livetv", icon: "📺" },
+          { label: "Media Player", pkg: "com.apps.usbmediaplayer", icon: "📁" },
           { label: "Settings", action: "settings", icon: "⚙" }
         ]
       },
@@ -59,7 +60,7 @@
       if (window.Android && window.Android.getSystemTelemetry) {
         try {
           const stats = JSON.parse(window.Android.getSystemTelemetry());
-          if (stats.jvm_used_mb) {
+          if (stats.jvm_used_mb !== undefined) {
             document.getElementById('hud-ram').textContent = `RAM: ${stats.jvm_used_mb}MB`;
           }
           if (stats.device_model) {
@@ -87,7 +88,7 @@
       }
     }
 
-    config.sections.forEach((section, sIdx) => {
+    config.sections.forEach((section) => {
       const secDiv = document.createElement('div');
       secDiv.className = 'section';
 
@@ -104,17 +105,35 @@
         items = installedApps.map(a => ({
           label: a.label,
           pkg: a.packageName,
-          icon: a.label ? a.label.substring(0, 1).toUpperCase() : 'A'
+          icon: a.icon || (a.label ? a.label.substring(0, 1).toUpperCase() : '✦')
         }));
+      } else {
+        // Enrich favorites with real app icons if available
+        items.forEach(item => {
+          if (item.pkg) {
+            const found = installedApps.find(a => a.packageName === item.pkg);
+            if (found && found.icon) {
+              item.icon = found.icon;
+            }
+          }
+        });
       }
 
       const rowElements = [];
-      items.forEach((item, iIdx) => {
+      items.forEach((item) => {
         const el = document.createElement('div');
         if (section.type === 'cards') {
           el.className = 'card';
+          
+          let iconHtml = '';
+          if (item.icon && item.icon.startsWith('data:image/')) {
+            iconHtml = `<img class="card-icon-img" src="${item.icon}" alt="">`;
+          } else {
+            iconHtml = `<div class="card-icon-char">${item.icon || '✦'}</div>`;
+          }
+
           el.innerHTML = `
-            <div class="card-icon">${item.icon || '✦'}</div>
+            <div class="card-icon">${iconHtml}</div>
             <div class="card-title">${item.label}</div>
           `;
         } else {
@@ -217,7 +236,6 @@
           if (activeEl) activeEl.click();
           break;
         case 'BACK':
-          // Return focus to top row
           currentRow = 0;
           currentCol = 0;
           updateFocus();
@@ -253,7 +271,7 @@
     }
   };
 
-  // Keyboard navigation fallback for testing in web browser
+  // Keyboard navigation fallback
   window.addEventListener('keydown', (e) => {
     switch (e.key) {
       case 'ArrowUp': window.FocusEngine.onKey('UP'); break;
