@@ -240,4 +240,20 @@ public class TvBridge {
             return "";
         }
     }
+
+    @JavascriptInterface
+    public boolean saveConfigFile(String fileName, String content) {
+        try {
+            File dir = new File("/sdcard/voidtv");
+            if (!dir.exists()) dir.mkdirs();
+            File f = new File(dir, fileName);
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
+            fos.write(content.getBytes("UTF-8"));
+            fos.flush();
+            fos.close();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }

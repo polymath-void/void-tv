@@ -1,12 +1,12 @@
-// VoidTV Runtime & 2D Spatial Focus Engine with In-App Browser & File Manager
+// VoidTV Runtime & 2D Spatial Focus Engine with In-App Browser, File Manager & Built-In Customizer
 (function () {
   let focusMatrix = [];
   let currentRow = 0;
   let currentCol = 0;
   let installedApps = [];
-  let currentMode = 'LAUNCHER'; // 'LAUNCHER' or 'FILE_MANAGER'
+  let currentMode = 'LAUNCHER'; // 'LAUNCHER', 'FILE_MANAGER', or 'CUSTOMIZER'
 
-  let config = {
+  const DEFAULT_CONFIG = {
     theme: {
       accent: "#00e5ff",
       glowColor: "rgba(0, 229, 255, 0.45)",
@@ -30,9 +30,10 @@
         title: "VOID SYSTEM TOOLS",
         type: "cards",
         items: [
+          { label: "Dashboard Config", action: "customizer", icon: "🎛️" },
           { label: "Web Browser", action: "browser", icon: "🌐" },
           { label: "File Manager", action: "files", icon: "📁" },
-          { label: "Settings", action: "settings", icon: "⚙" }
+          { label: "TV Settings", action: "settings", icon: "⚙" }
         ]
       },
       {
@@ -53,6 +54,56 @@
       }
     ]
   };
+
+  let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+  function applyTheme() {
+    if (config.theme) {
+      if (config.theme.accent) {
+        document.documentElement.style.setProperty('--accent', config.theme.accent);
+      }
+      if (config.theme.glowColor) {
+        document.documentElement.style.setProperty('--accent-glow', config.theme.glowColor);
+      }
+      if (config.theme.focusScale) {
+        document.documentElement.style.setProperty('--focus-scale', config.theme.focusScale);
+      }
+    }
+  }
+
+  function loadConfigFromStorage() {
+    let json = "";
+    if (window.Android && window.Android.getConfigFile) {
+      json = window.Android.getConfigFile("layout.json");
+    }
+    if (!json || json.trim().length === 0) {
+      try {
+        json = localStorage.getItem("voidtv_layout_config") || "";
+      } catch (e) {}
+    }
+
+    if (json && json.trim().length > 0) {
+      try {
+        const parsed = JSON.parse(json);
+        if (parsed.sections && parsed.sections.length > 0) {
+          config = parsed;
+        }
+      } catch (e) {}
+    }
+
+    applyTheme();
+  }
+
+  function saveConfigToStorage() {
+    applyTheme();
+    const str = JSON.stringify(config, null, 2);
+    try {
+      localStorage.setItem("voidtv_layout_config", str);
+    } catch (e) {}
+    if (window.Android && window.Android.saveConfigFile) {
+      window.Android.saveConfigFile("layout.json", str);
+    }
+  }
 
   // Clock & Telemetry
   function initClock() {
@@ -97,6 +148,8 @@
     }
 
     config.sections.forEach((section) => {
+      if (section.hidden) return; // Skip hidden rows
+
       const secDiv = document.createElement('div');
       secDiv.className = 'section';
 
@@ -127,6 +180,11 @@
       const rowElements = [];
       items.forEach((item) => {
         const el = document.createElement('div');
+        if (item.pkg) {
+          el.dataset.pkg = item.pkg;
+          el.dataset.label = item.label;
+        }
+
         if (section.type === 'cards') {
           el.className = 'card';
           let iconHtml = '';
@@ -162,7 +220,9 @@
   }
 
   function executeAction(item) {
-    if (item.action === 'browser') {
+    if (item.action === 'customizer') {
+      window.Customizer.open('favs');
+    } else if (item.action === 'browser') {
       if (window.Android && window.Android.openBrowser) {
         window.Android.openBrowser("file:///android_asset/runtime/browser_home.html");
       } else {
@@ -185,6 +245,27 @@
     } else {
       showToast("Selected: " + (item.label || item.action));
     }
+  }
+
+  function toggleFavoriteDirect(pkg, label) {
+    let favSection = config.sections.find(s => s.id === 'favorites');
+    if (!favSection) {
+      favSection = { id: "favorites", title: "FAVORITE APPS", type: "cards", items: [] };
+      config.sections.unshift(favSection);
+    }
+    if (!favSection.items) favSection.items = [];
+
+    const existingIdx = favSection.items.findIndex(it => it.pkg === pkg);
+    if (existingIdx >= 0) {
+      favSection.items.splice(existingIdx, 1);
+      showToast("Removed from Favorites");
+    } else {
+      favSection.items.push({ label: label || pkg, pkg: pkg, icon: "▶" });
+      showToast("Added " + (label || pkg) + " to Favorites ⭐");
+    }
+
+    saveConfigToStorage();
+    renderLayout();
   }
 
   function updateFocus() {
@@ -212,11 +293,376 @@
     setTimeout(() => toast.classList.remove('show'), 2000);
   }
 
+  // ==========================================================
+  // Dashboard & Favorites Customizer Engine
+  // ==========================================================
+  window.Customizer = {
+    activeTab: 'favs',
+    czMatrix: [],
+    czRow: 0,
+    czCol: 0,
+
+    open: function (tab) {
+      currentMode = 'CUSTOMIZER';
+      document.getElementById('customizer-overlay').style.display = 'flex';
+      this.switchTab(tab || 'favs');
+    },
+
+    close: function () {
+      document.getElementById('customizer-overlay').style.display = 'none';
+      currentMode = 'LAUNCHER';
+      saveConfigToStorage();
+      renderLayout();
+      updateFocus();
+    },
+
+    switchTab: function (tab) {
+      this.activeTab = tab;
+      document.querySelectorAll('.cz-tab').forEach(b => {
+        b.classList.toggle('active', b.dataset.tab === tab);
+      });
+
+      const body = document.getElementById('customizer-body');
+      body.innerHTML = '';
+      this.czMatrix = [];
+
+      // Row 0 is always the top tabs bar
+      const tabElements = Array.from(document.querySelectorAll('.cz-tab, .customizer-close-btn'));
+      this.czMatrix.push(tabElements);
+
+      if (tab === 'favs') {
+        this.renderFavsTab(body);
+      } else if (tab === 'rows') {
+        this.renderRowsTab(body);
+      } else if (tab === 'theme') {
+        this.renderThemeTab(body);
+      } else if (tab === 'backup') {
+        this.renderBackupTab(body);
+      }
+
+      this.czRow = 1;
+      this.czCol = 0;
+      this.updateFocus();
+    },
+
+    renderFavsTab: function (container) {
+      const favSection = config.sections.find(s => s.id === 'favorites');
+      const favPkgs = favSection && favSection.items ? favSection.items.map(i => i.pkg) : [];
+
+      const intro = document.createElement('div');
+      intro.className = 'cz-section-intro';
+      intro.innerHTML = `
+        <div class="cz-subhead">Favorite Applications Dock</div>
+        <div class="cz-subdesc">${favPkgs.length} Selected • Press [SELECT] to Toggle • Press [BACK] to Save & Exit</div>
+      `;
+      container.appendChild(intro);
+
+      const grid = document.createElement('div');
+      grid.className = 'cz-grid';
+
+      let gridRow = [];
+      installedApps.forEach((app) => {
+        const isFav = favPkgs.includes(app.packageName);
+        const card = document.createElement('div');
+        card.className = `cz-card ${isFav ? 'is-fav' : ''}`;
+
+        let iconSrc = app.icon || '';
+        let iconHtml = iconSrc ? `<img class="cz-card-icon" src="${iconSrc}" alt="">` : `<div class="card-icon-char">✦</div>`;
+
+        card.innerHTML = `
+          ${iconHtml}
+          <div class="cz-card-details">
+            <div class="cz-card-name">${app.label}</div>
+            <div class="cz-card-pkg">${app.packageName}</div>
+          </div>
+          <span class="${isFav ? 'cz-badge-fav' : 'cz-badge-add'}">${isFav ? '★ FAVORITE' : '☆ ADD'}</span>
+        `;
+
+        card.addEventListener('click', () => {
+          this.toggleFavorite(app);
+        });
+
+        grid.appendChild(card);
+        gridRow.push(card);
+
+        if (gridRow.length === 4) {
+          this.czMatrix.push(gridRow);
+          gridRow = [];
+        }
+      });
+
+      if (gridRow.length > 0) {
+        this.czMatrix.push(gridRow);
+      }
+      container.appendChild(grid);
+    },
+
+    toggleFavorite: function (app) {
+      toggleFavoriteDirect(app.packageName, app.label);
+      this.renderFavsTabRebuild();
+    },
+
+    renderFavsTabRebuild: function () {
+      const body = document.getElementById('customizer-body');
+      body.innerHTML = '';
+      const tabElements = Array.from(document.querySelectorAll('.cz-tab, .customizer-close-btn'));
+      this.czMatrix = [tabElements];
+      this.renderFavsTab(body);
+      this.updateFocus();
+    },
+
+    renderRowsTab: function (container) {
+      const intro = document.createElement('div');
+      intro.className = 'cz-section-intro';
+      intro.innerHTML = `
+        <div class="cz-subhead">Home Dashboard Rows & Ordering</div>
+        <div class="cz-subdesc">Toggle Visibility & Reorder Rows with Remote Controls</div>
+      `;
+      container.appendChild(intro);
+
+      const list = document.createElement('div');
+      list.className = 'cz-rows-list';
+
+      config.sections.forEach((sec, idx) => {
+        const item = document.createElement('div');
+        item.className = 'cz-row-item';
+
+        const isHidden = !!sec.hidden;
+        item.innerHTML = `
+          <div class="cz-row-info">
+            <div class="cz-row-title">${sec.title}</div>
+            <div class="cz-row-type">ID: ${sec.id} • Type: ${sec.type}</div>
+          </div>
+          <div class="cz-row-controls">
+            <button class="cz-btn cz-btn-toggle ${isHidden ? 'inactive' : 'active'}" data-action="toggle">${isHidden ? '✗ HIDDEN' : '✓ VISIBLE'}</button>
+            <button class="cz-btn" data-action="up" ${idx === 0 ? 'disabled style="opacity:0.3"' : ''}>⬆ UP</button>
+            <button class="cz-btn" data-action="down" ${idx === config.sections.length - 1 ? 'disabled style="opacity:0.3"' : ''}>⬇ DOWN</button>
+          </div>
+        `;
+
+        const btnToggle = item.querySelector('[data-action="toggle"]');
+        const btnUp = item.querySelector('[data-action="up"]');
+        const btnDown = item.querySelector('[data-action="down"]');
+
+        btnToggle.addEventListener('click', () => {
+          sec.hidden = !sec.hidden;
+          saveConfigToStorage();
+          this.switchTab('rows');
+        });
+
+        btnUp.addEventListener('click', () => {
+          if (idx > 0) {
+            const temp = config.sections[idx - 1];
+            config.sections[idx - 1] = config.sections[idx];
+            config.sections[idx] = temp;
+            saveConfigToStorage();
+            this.switchTab('rows');
+          }
+        });
+
+        btnDown.addEventListener('click', () => {
+          if (idx < config.sections.length - 1) {
+            const temp = config.sections[idx + 1];
+            config.sections[idx + 1] = config.sections[idx];
+            config.sections[idx] = temp;
+            saveConfigToStorage();
+            this.switchTab('rows');
+          }
+        });
+
+        list.appendChild(item);
+        this.czMatrix.push([btnToggle, btnUp, btnDown]);
+      });
+
+      container.appendChild(list);
+    },
+
+    renderThemeTab: function (container) {
+      const themes = [
+        { name: "Cyber Cyan", accent: "#00e5ff", glow: "rgba(0, 229, 255, 0.45)" },
+        { name: "Neon Violet", accent: "#b388ff", glow: "rgba(179, 136, 255, 0.45)" },
+        { name: "Matrix Emerald", accent: "#00e676", glow: "rgba(0, 230, 118, 0.45)" },
+        { name: "Amber Gold", accent: "#ffd600", glow: "rgba(255, 214, 0, 0.45)" },
+        { name: "Crimson Red", accent: "#ff1744", glow: "rgba(255, 23, 68, 0.45)" },
+        { name: "Pure Mono", accent: "#ffffff", glow: "rgba(255, 255, 255, 0.45)" }
+      ];
+
+      const intro = document.createElement('div');
+      intro.className = 'cz-section-intro';
+      intro.innerHTML = `
+        <div class="cz-subhead">Visual Theme & Accent Colors</div>
+        <div class="cz-subdesc">Instant Real-Time Preview on TV Display</div>
+      `;
+      container.appendChild(intro);
+
+      const grid = document.createElement('div');
+      grid.className = 'cz-theme-grid';
+
+      let row = [];
+      themes.forEach((th) => {
+        const isCurrent = config.theme && config.theme.accent === th.accent;
+        const card = document.createElement('div');
+        card.className = `cz-theme-card ${isCurrent ? 'active' : ''}`;
+        card.innerHTML = `
+          <div class="cz-color-circle" style="background:${th.accent}; color:${th.accent};"></div>
+          <div class="cz-theme-details">
+            <div class="cz-theme-name">${th.name}</div>
+            <div class="cz-theme-hex">${th.accent}</div>
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          config.theme = config.theme || {};
+          config.theme.accent = th.accent;
+          config.theme.glowColor = th.glow;
+          saveConfigToStorage();
+          showToast(`Applied ${th.name} Theme`);
+          this.switchTab('theme');
+        });
+
+        grid.appendChild(card);
+        row.push(card);
+        if (row.length === 3) {
+          this.czMatrix.push(row);
+          row = [];
+        }
+      });
+      if (row.length > 0) this.czMatrix.push(row);
+
+      container.appendChild(grid);
+    },
+
+    renderBackupTab: function (container) {
+      const intro = document.createElement('div');
+      intro.className = 'cz-section-intro';
+      intro.innerHTML = `
+        <div class="cz-subhead">Configuration Backup & Reset</div>
+        <div class="cz-subdesc">Direct Storage Sync to /sdcard/voidtv/layout.json</div>
+      `;
+      container.appendChild(intro);
+
+      const box = document.createElement('div');
+      box.className = 'cz-action-box';
+
+      const rowReset = document.createElement('div');
+      rowReset.className = 'cz-action-row';
+      rowReset.innerHTML = `
+        <div>
+          <div style="font-size:15px; font-weight:700; color:#fff;">Reset to Default Layout</div>
+          <div style="font-size:12px; color:#777;">Restore pristine layout, stock rows and standard favorites.</div>
+        </div>
+        <button class="cz-btn" style="border-color:#ff3366; color:#ff3366;">RESET DEFAULTS</button>
+      `;
+      const btnReset = rowReset.querySelector('button');
+      btnReset.addEventListener('click', () => {
+        config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+        saveConfigToStorage();
+        showToast("Reset to Defaults");
+        this.close();
+      });
+
+      const rowReload = document.createElement('div');
+      rowReload.className = 'cz-action-row';
+      rowReload.innerHTML = `
+        <div>
+          <div style="font-size:15px; font-weight:700; color:#fff;">Reload From Disk</div>
+          <div style="font-size:12px; color:#777;">Force re-read from /sdcard/voidtv/layout.json.</div>
+        </div>
+        <button class="cz-btn">RELOAD DISK</button>
+      `;
+      const btnReload = rowReload.querySelector('button');
+      btnReload.addEventListener('click', () => {
+        loadConfigFromStorage();
+        showToast("Reloaded from Disk");
+        this.close();
+      });
+
+      box.appendChild(rowReset);
+      box.appendChild(rowReload);
+      container.appendChild(box);
+
+      this.czMatrix.push([btnReset]);
+      this.czMatrix.push([btnReload]);
+    },
+
+    updateFocus: function () {
+      document.querySelectorAll('.focused').forEach(el => el.classList.remove('focused'));
+
+      if (this.czMatrix.length === 0) return;
+      if (this.czRow < 0) this.czRow = 0;
+      if (this.czRow >= this.czMatrix.length) this.czRow = this.czMatrix.length - 1;
+
+      const row = this.czMatrix[this.czRow];
+      if (!row || row.length === 0) return;
+      if (this.czCol < 0) this.czCol = 0;
+      if (this.czCol >= row.length) this.czCol = row.length - 1;
+
+      const el = row[this.czCol];
+      if (el) {
+        el.classList.add('focused');
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    },
+
+    onKey: function (key) {
+      if (this.czMatrix.length === 0) return;
+
+      switch (key) {
+        case 'UP':
+          if (this.czRow > 0) {
+            this.czRow--;
+            this.czCol = Math.min(this.czCol, this.czMatrix[this.czRow].length - 1);
+            this.updateFocus();
+          }
+          break;
+        case 'DOWN':
+          if (this.czRow < this.czMatrix.length - 1) {
+            this.czRow++;
+            this.czCol = Math.min(this.czCol, this.czMatrix[this.czRow].length - 1);
+            this.updateFocus();
+          }
+          break;
+        case 'LEFT':
+          if (this.czCol > 0) {
+            this.czCol--;
+            this.updateFocus();
+          }
+          break;
+        case 'RIGHT':
+          if (this.czRow < this.czMatrix.length && this.czCol < this.czMatrix[this.czRow].length - 1) {
+            this.czCol++;
+            this.updateFocus();
+          }
+          break;
+        case 'SELECT':
+          const activeEl = this.czMatrix[this.czRow] ? this.czMatrix[this.czRow][this.czCol] : null;
+          if (activeEl) activeEl.click();
+          break;
+        case 'BACK':
+          this.close();
+          break;
+      }
+    }
+  };
+
+  // Wire Customizer Tabs
+  document.querySelectorAll('.cz-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      window.Customizer.switchTab(btn.dataset.tab);
+    });
+  });
+
+  document.getElementById('cz-close-btn').addEventListener('click', () => {
+    window.Customizer.close();
+  });
+
+  // ==========================================================
   // File Manager Engine
+  // ==========================================================
   window.FileManager = {
     currentPath: '/storage/emulated/0',
     items: [],
-    fmMatrix: [], // 2D grid matrix of file elements (4 columns)
+    fmMatrix: [],
     fmRow: 0,
     fmCol: 0,
 
@@ -251,58 +697,72 @@
         this.items = [];
       }
 
-      // Add parent directory navigation card if not at root
-      if (this.currentPath !== '/storage/emulated/0' && this.currentPath !== '/') {
-        this.items.unshift({
-          name: ".. [Parent Directory]",
-          path: this.getParentPath(this.currentPath),
+      const allEntries = [];
+      if (path !== '/' && path !== '/storage/emulated/0') {
+        allEntries.push({
+          name: '..',
+          path: this.getParentPath(path),
           isDir: true,
-          formattedSize: "Folder"
+          formattedSize: 'Parent Folder',
+          icon: '↩'
         });
       }
 
-      const elements = [];
-      this.items.forEach((item) => {
-        const div = document.createElement('div');
-        div.className = 'fm-item';
-
+      this.items.forEach(it => {
         let icon = '📄';
-        if (item.isDir) {
-          icon = item.name.startsWith('..') ? '⬆️' : '📁';
+        if (it.isDir) {
+          icon = '📁';
         } else {
-          const ext = item.ext || '';
-          if (['mp4', 'mkv', 'avi', 'mov'].includes(ext)) icon = '🎬';
-          else if (['mp3', 'wav', 'flac', 'aac'].includes(ext)) icon = '🎵';
-          else if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) icon = '🖼️';
+          const ext = it.ext || '';
+          if (['mp4', 'mkv', 'avi', 'mov', 'webm'].includes(ext)) icon = '🎬';
+          else if (['mp3', 'flac', 'wav', 'aac', 'ogg'].includes(ext)) icon = '🎵';
+          else if (['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext)) icon = '🖼️';
           else if (['apk'].includes(ext)) icon = '📦';
-          else if (['txt', 'json', 'log', 'sh', 'py'].includes(ext)) icon = '📝';
+          else if (['json', 'txt', 'xml', 'log', 'md'].includes(ext)) icon = '📝';
         }
+        it.icon = icon;
+        allEntries.push(it);
+      });
 
-        div.innerHTML = `
-          <div class="fm-item-icon">${icon}</div>
+      let currentRowElements = [];
+      allEntries.forEach((file) => {
+        const card = document.createElement('div');
+        card.className = 'fm-item';
+        card.innerHTML = `
+          <div class="fm-item-icon">${file.icon}</div>
           <div class="fm-item-details">
-            <div class="fm-item-name">${item.name}</div>
-            <div class="fm-item-size">${item.formattedSize || ''}</div>
+            <div class="fm-item-name">${file.name}</div>
+            <div class="fm-item-size">${file.formattedSize}</div>
           </div>
         `;
 
-        div.addEventListener('click', () => {
-          this.onItemClick(item);
+        card.addEventListener('click', () => {
+          if (file.isDir) {
+            this.loadDirectory(file.path);
+          } else {
+            if (window.Android && window.Android.openFile) {
+              const ok = window.Android.openFile(file.path);
+              if (!ok) showToast("Cannot open file: " + file.name);
+            }
+          }
         });
 
-        grid.appendChild(div);
-        elements.push(div);
+        grid.appendChild(card);
+        currentRowElements.push(card);
+
+        if (currentRowElements.length === 4) {
+          this.fmMatrix.push(currentRowElements);
+          currentRowElements = [];
+        }
       });
 
-      // Construct 4-column 2D focus matrix
-      const cols = 4;
-      for (let i = 0; i < elements.length; i += cols) {
-        this.fmMatrix.push(elements.slice(i, i + cols));
+      if (currentRowElements.length > 0) {
+        this.fmMatrix.push(currentRowElements);
       }
 
       this.fmRow = 0;
       this.fmCol = 0;
-      this.updateFmFocus();
+      this.updateFocus();
     },
 
     getParentPath: function (path) {
@@ -311,70 +771,61 @@
       return path.substring(0, idx);
     },
 
-    onItemClick: function (item) {
-      if (item.isDir) {
-        this.loadDirectory(item.path);
-      } else {
-        if (window.Android && window.Android.openFile) {
-          const ok = window.Android.openFile(item.path);
-          if (!ok) showToast("Could not open " + item.name);
-        } else {
-          showToast("Opening file: " + item.name);
-        }
-      }
-    },
-
-    updateFmFocus: function () {
+    updateFocus: function () {
       document.querySelectorAll('.focused').forEach(el => el.classList.remove('focused'));
-      if (this.fmMatrix.length === 0) return;
 
+      if (this.fmMatrix.length === 0) return;
       if (this.fmRow < 0) this.fmRow = 0;
       if (this.fmRow >= this.fmMatrix.length) this.fmRow = this.fmMatrix.length - 1;
 
       const row = this.fmMatrix[this.fmRow];
+      if (!row || row.length === 0) return;
       if (this.fmCol < 0) this.fmCol = 0;
       if (this.fmCol >= row.length) this.fmCol = row.length - 1;
 
-      const active = row[this.fmCol];
-      if (active) {
-        active.classList.add('focused');
-        active.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      const el = row[this.fmCol];
+      if (el) {
+        el.classList.add('focused');
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     },
 
     onKey: function (key) {
-      if (this.fmMatrix.length === 0) return;
+      if (this.fmMatrix.length === 0) {
+        if (key === 'BACK') this.close();
+        return;
+      }
 
       switch (key) {
         case 'UP':
           if (this.fmRow > 0) {
             this.fmRow--;
             this.fmCol = Math.min(this.fmCol, this.fmMatrix[this.fmRow].length - 1);
-            this.updateFmFocus();
+            this.updateFocus();
           }
           break;
         case 'DOWN':
           if (this.fmRow < this.fmMatrix.length - 1) {
             this.fmRow++;
             this.fmCol = Math.min(this.fmCol, this.fmMatrix[this.fmRow].length - 1);
-            this.updateFmFocus();
+            this.updateFocus();
           }
           break;
         case 'LEFT':
           if (this.fmCol > 0) {
             this.fmCol--;
-            this.updateFmFocus();
+            this.updateFocus();
           }
           break;
         case 'RIGHT':
-          if (this.fmCol < this.fmMatrix[this.fmRow].length - 1) {
+          if (this.fmRow < this.fmMatrix.length && this.fmCol < this.fmMatrix[this.fmRow].length - 1) {
             this.fmCol++;
-            this.updateFmFocus();
+            this.updateFocus();
           }
           break;
         case 'SELECT':
-          const active = this.fmMatrix[this.fmRow][this.fmCol];
-          if (active) active.click();
+          const el = this.fmMatrix[this.fmRow] ? this.fmMatrix[this.fmRow][this.fmCol] : null;
+          if (el) el.click();
           break;
         case 'BACK':
           if (this.currentPath !== '/storage/emulated/0' && this.currentPath !== '/') {
@@ -391,9 +842,16 @@
     window.FileManager.close();
   });
 
-  // Global D-Pad Dispatcher
+  // ==========================================================
+  // Global Focus & Remote Navigation Engine
+  // ==========================================================
   window.FocusEngine = {
     onKey: function (key) {
+      if (currentMode === 'CUSTOMIZER') {
+        window.Customizer.onKey(key);
+        return;
+      }
+
       if (currentMode === 'FILE_MANAGER') {
         window.FileManager.onKey(key);
         return;
@@ -429,13 +887,22 @@
           }
           break;
         case 'SELECT':
-          const activeEl = focusMatrix[currentRow][currentCol];
+          const activeEl = focusMatrix[currentRow] ? focusMatrix[currentRow][currentCol] : null;
           if (activeEl) activeEl.click();
           break;
         case 'BACK':
           currentRow = 0;
           currentCol = 0;
           updateFocus();
+          break;
+        case 'MENU':
+          // Remote MENU button: If on an app card, toggle favorite! Else open customizer!
+          const focusedCard = focusMatrix[currentRow] ? focusMatrix[currentRow][currentCol] : null;
+          if (focusedCard && focusedCard.dataset && focusedCard.dataset.pkg) {
+            toggleFavoriteDirect(focusedCard.dataset.pkg, focusedCard.dataset.label);
+          } else {
+            window.Customizer.open('favs');
+          }
           break;
       }
     }
@@ -444,25 +911,7 @@
   // Live Hot-Reload Engine
   window.HotReload = {
     reloadConfig: function () {
-      if (window.Android && window.Android.getConfigFile) {
-        const json = window.Android.getConfigFile("layout.json");
-        if (json && json.length > 0) {
-          try {
-            config = JSON.parse(json);
-            if (config.theme) {
-              if (config.theme.accent) {
-                document.documentElement.style.setProperty('--accent', config.theme.accent);
-              }
-              if (config.theme.glowColor) {
-                document.documentElement.style.setProperty('--accent-glow', config.theme.glowColor);
-              }
-            }
-            renderLayout();
-            showToast("Hot-Reload Applied");
-            return;
-          } catch (e) {}
-        }
-      }
+      loadConfigFromStorage();
       renderLayout();
       showToast("Config Refreshed");
     }
@@ -477,9 +926,15 @@
       case 'ArrowRight': window.FocusEngine.onKey('RIGHT'); break;
       case 'Enter': window.FocusEngine.onKey('SELECT'); break;
       case 'Backspace': window.FocusEngine.onKey('BACK'); break;
+      case 'm':
+      case 'M':
+      case 'ContextMenu':
+        window.FocusEngine.onKey('MENU');
+        break;
     }
   });
 
   initClock();
+  loadConfigFromStorage();
   renderLayout();
 })();

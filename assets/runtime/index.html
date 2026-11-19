@@ -27,6 +27,26 @@
     <!-- Dynamic sections injected via app.js -->
   </main>
 
+  <!-- In-App Dashboard & Favorites Customizer Overlay -->
+  <div class="customizer-overlay" id="customizer-overlay" style="display: none;">
+    <div class="customizer-header">
+      <div class="customizer-title-wrap">
+        <span class="customizer-badge">VOID.CFG</span>
+        <span class="customizer-title">DASHBOARD &amp; FAVORITES CUSTOMIZER</span>
+      </div>
+      <div class="customizer-tabs" id="customizer-tabs">
+        <button class="cz-tab active" data-tab="favs" id="tab-favs">⭐ FAVORITES</button>
+        <button class="cz-tab" data-tab="rows" id="tab-rows">📑 DASHBOARD ROWS</button>
+        <button class="cz-tab" data-tab="theme" id="tab-theme">🎨 THEMES &amp; STYLE</button>
+        <button class="cz-tab" data-tab="backup" id="tab-backup">💾 RESET / DEFAULTS</button>
+      </div>
+      <button class="customizer-close-btn" id="cz-close-btn">✕ EXIT / SAVE (BACK)</button>
+    </div>
+    <div class="customizer-body" id="customizer-body">
+      <!-- Injected dynamically by CustomizerEngine -->
+    </div>
+  </div>
+
   <!-- In-App File Manager Overlay -->
   <div class="fm-overlay" id="fm-overlay" style="display: none;">
     <div class="fm-header">

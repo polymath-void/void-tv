@@ -22,9 +22,10 @@
       "title": "VOID SYSTEM TOOLS",
       "type": "cards",
       "items": [
+        { "label": "Dashboard Config", "action": "customizer", "icon": "🎛️" },
         { "label": "Web Browser", "action": "browser", "icon": "🌐" },
         { "label": "File Manager", "action": "files", "icon": "📁" },
-        { "label": "Settings", "action": "settings", "icon": "⚙" }
+        { "label": "TV Settings", "action": "settings", "icon": "⚙" }
       ]
     },
     {
