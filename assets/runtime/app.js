@@ -164,7 +164,7 @@
   function executeAction(item) {
     if (item.action === 'browser') {
       if (window.Android && window.Android.openBrowser) {
-        window.Android.openBrowser("https://duckduckgo.com");
+        window.Android.openBrowser("file:///android_asset/runtime/browser_home.html");
       } else {
         showToast("Opening Browser...");
       }

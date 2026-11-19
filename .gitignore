@@ -6,3 +6,4 @@ classes.dex
 voidtv-aligned.apk
 voidtv-release.apk
 debug.keystore
+*.idsig

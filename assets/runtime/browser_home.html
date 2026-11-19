@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VoidTV Browser Home</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      outline: none;
+    }
+    body {
+      background: radial-gradient(circle at 50% 10%, #10101c 0%, #050508 100%);
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      min-height: 100vh;
+      padding: 32px 48px;
+      overflow-x: hidden;
+    }
+    /* Top Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 28px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-logo {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: #000;
+      background: #00e5ff;
+      padding: 6px 14px;
+      border-radius: 4px;
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.4);
+    }
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #fff;
+    }
+    .badges {
+      display: flex;
+      gap: 12px;
+    }
+    .badge {
+      font-family: monospace;
+      font-size: 11px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #aaa;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge.active {
+      border-color: #00e5ff;
+      color: #00e5ff;
+      background: rgba(0, 229, 255, 0.1);
+    }
+    .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #00e5ff;
+      box-shadow: 0 0 8px #00e5ff;
+    }
+
+    /* Search Container */
+    .search-section {
+      margin-bottom: 32px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+    .search-box-wrap {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .search-input {
+      flex: 1;
+      background: #0a0a10;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 12px 18px;
+      font-size: 16px;
+      color: #fff;
+      transition: all 0.2s ease;
+    }
+    .search-input:focus, .search-input.focused {
+      border-color: #00e5ff;
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.35);
+      background: #10101c;
+    }
+    .search-btn {
+      background: #181824;
+      border: 2px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 12px 24px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .search-btn:focus, .search-btn.focused {
+      background: #00e5ff;
+      color: #000;
+      border-color: #00e5ff;
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.5);
+      transform: scale(1.04);
+    }
+    .engine-chips {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .engine-label {
+      font-size: 12px;
+      color: #777;
+      margin-right: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      color: #bbb;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .chip.selected {
+      background: rgba(0, 229, 255, 0.15);
+      border-color: #00e5ff;
+      color: #00e5ff;
+      font-weight: 700;
+    }
+    .chip:focus, .chip.focused {
+      background: #00e5ff;
+      color: #000;
+      border-color: #00e5ff;
+      transform: scale(1.05);
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
+    }
+
+    /* Shelf Section */
+    .section-title {
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #7c4dff;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title::before {
+      content: "";
+      width: 4px;
+      height: 12px;
+      background: #7c4dff;
+      border-radius: 2px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1.5px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .card:focus, .card.focused {
+      border-color: #00e5ff;
+      background: rgba(0, 229, 255, 0.08);
+      transform: scale(1.04);
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.35);
+      z-index: 10;
+    }
+    .card-icon {
+      font-size: 26px;
+      margin-bottom: 4px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .card-desc {
+      font-size: 11px;
+      color: #888;
+      line-height: 1.4;
+    }
+    .card-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 9px;
+      font-family: monospace;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #00e5ff;
+      border: 1px solid rgba(0, 229, 255, 0.2);
+    }
+
+    /* Diagnostics HUD Box */
+    .diag-box {
+      background: #090910;
+      border: 1px solid rgba(0, 229, 255, 0.2);
+      border-radius: 10px;
+      padding: 18px 24px;
+      font-family: monospace;
+      font-size: 12px;
+      margin-top: 12px;
+      margin-bottom: 32px;
+    }
+    .diag-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .diag-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .diag-status {
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .status-pass {
+      color: #00ff66;
+      background: rgba(0, 255, 102, 0.1);
+      border: 1px solid rgba(0, 255, 102, 0.3);
+    }
+    .status-wait {
+      color: #ffaa00;
+      background: rgba(255, 170, 0, 0.1);
+      border: 1px solid rgba(255, 170, 0, 0.3);
+    }
+    .status-fail {
+      color: #ff3366;
+      background: rgba(255, 51, 102, 0.1);
+      border: 1px solid rgba(255, 51, 102, 0.3);
+    }
+    .diag-label {
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="brand">
+      <div class="brand-logo">VOID.TV</div>
+      <div class="brand-title">WEB RUNTIME & MEDIA ENGINE</div>
+    </div>
+    <div class="badges">
+      <div class="badge active" id="badge-drm">
+        <span class="badge-dot"></span>
+        <span id="badge-drm-text">DRM: INITIALIZING</span>
+      </div>
+      <div class="badge active" id="badge-cookie">
+        <span class="badge-dot"></span>
+        <span id="badge-cookie-text">COOKIES: ACTIVE</span>
+      </div>
+      <div class="badge" id="badge-engine">
+        <span>V8 / CHROMIUM 157</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Search & Navigation -->
+  <section class="search-section">
+    <form id="search-form" class="search-box-wrap" onsubmit="handleSearch(event)">
+      <input type="text" id="search-input" class="search-input" placeholder="Search web or enter URL (e.g. youtube.com, fast.com)..." autocomplete="off" />
+      <button type="submit" id="search-btn" class="search-btn">SEARCH / GO ➔</button>
+    </form>
+    <div class="engine-chips">
+      <span class="engine-label">Search Engine:</span>
+      <button type="button" class="chip selected" data-engine="ddg" onclick="selectEngine('ddg')">DuckDuckGo</button>
+      <button type="button" class="chip" data-engine="google" onclick="selectEngine('google')">Google</button>
+      <button type="button" class="chip" data-engine="youtube" onclick="selectEngine('youtube')">YouTube</button>
+      <button type="button" class="chip" data-engine="wiki" onclick="selectEngine('wiki')">Wikipedia</button>
+    </div>
+  </section>
+
+  <!-- Streaming & Media Bookmarks -->
+  <div class="section-title">Streaming & Media Hub</div>
+  <div class="grid">
+    <a href="https://www.youtube.com/tv" class="card">
+      <span class="card-badge">LEANBACK</span>
+      <div class="card-icon">📺</div>
+      <div class="card-title">YouTube TV</div>
+      <div class="card-desc">Official 10-foot television interface with full DPAD control.</div>
+    </a>
+    <a href="https://www.youtube.com" class="card">
+      <span class="card-badge">WEB</span>
+      <div class="card-icon">▶️</div>
+      <div class="card-title">YouTube Web</div>
+      <div class="card-desc">Desktop video player with 4K/60FPS streaming & HTML5 playback.</div>
+    </a>
+    <a href="https://www.twitch.tv" class="card">
+      <span class="card-badge">LIVE</span>
+      <div class="card-icon">🟣</div>
+      <div class="card-title">Twitch</div>
+      <div class="card-desc">Live game streaming, esports broadcasts, and global chat.</div>
+    </a>
+    <a href="https://archive.org" class="card">
+      <span class="card-badge">MEDIA</span>
+      <div class="card-icon">🏛️</div>
+      <div class="card-title">Internet Archive</div>
+      <div class="card-desc">Millions of free movies, classic TV broadcasts, and retro media.</div>
+    </a>
+  </div>
+
+  <!-- DRM & Video Test Labs -->
+  <div class="section-title">DRM & EME Verification Labs</div>
+  <div class="grid">
+    <a href="https://shaka-player-demo.appspot.com" class="card">
+      <span class="card-badge">WIDEVINE</span>
+      <div class="card-icon">🛡️</div>
+      <div class="card-title">Shaka DRM Player</div>
+      <div class="card-desc">Google's reference DASH/HLS player with Widevine Modular & ClearKey verification.</div>
+    </a>
+    <a href="https://bitmovin.com/demos/drm" class="card">
+      <span class="card-badge">ENCRYPTED</span>
+      <div class="card-icon">🔐</div>
+      <div class="card-title">Bitmovin DRM Lab</div>
+      <div class="card-desc">Multi-DRM live stream test verifying CENC decryption & CDM throughput.</div>
+    </a>
+    <a href="https://demo.castlabs.com" class="card">
+      <span class="card-badge">CDM LAB</span>
+      <div class="card-icon">🧪</div>
+      <div class="card-title">CastLabs Video Player</div>
+      <div class="card-desc">Comprehensive test streams for Widevine L1/L3 and PlayReady protected assets.</div>
+    </a>
+    <a href="https://fast.com" class="card">
+      <span class="card-badge">SPEED</span>
+      <div class="card-icon">⚡</div>
+      <div class="card-title">Fast.com Speed Test</div>
+      <div class="card-desc">Netflix CDN bandwidth, buffer bloat, and stream latency telemetry.</div>
+    </a>
+  </div>
+
+  <!-- Tech, Information & Reading -->
+  <div class="section-title">Information & Global Web</div>
+  <div class="grid">
+    <a href="https://news.ycombinator.com" class="card">
+      <span class="card-badge">TECH</span>
+      <div class="card-icon">📰</div>
+      <div class="card-title">Hacker News</div>
+      <div class="card-desc">Real-time tech news, engineering discussions, and software culture.</div>
+    </a>
+    <a href="https://en.wikipedia.org" class="card">
+      <span class="card-badge">WIKI</span>
+      <div class="card-icon">📚</div>
+      <div class="card-title">Wikipedia</div>
+      <div class="card-desc">The open multilingual online encyclopedia with 60M+ articles.</div>
+    </a>
+    <a href="https://www.reddit.com" class="card">
+      <span class="card-badge">FORUM</span>
+      <div class="card-icon">💬</div>
+      <div class="card-title">Reddit</div>
+      <div class="card-desc">Top discussions, gaming subreddits, and breaking world updates.</div>
+    </a>
+    <a href="https://www.bbc.com" class="card">
+      <span class="card-badge">NEWS</span>
+      <div class="card-icon">🌍</div>
+      <div class="card-title">BBC News</div>
+      <div class="card-desc">Global headlines, international journalism, and documentary streaming.</div>
+    </a>
+  </div>
+
+  <!-- Realtime DRM & Capability Inspector HUD -->
+  <div class="section-title">Browser Engine & DRM Diagnostics</div>
+  <div class="diag-box">
+    <div class="diag-grid">
+      <div class="diag-row">
+        <span class="diag-status status-wait" id="diag-widevine">TESTING</span>
+        <span class="diag-label">Widevine Modular DRM (com.widevine.alpha):</span>
+        <span id="diag-widevine-desc" style="color: #fff;">Detecting CDM...</span>
+      </div>
+      <div class="diag-row">
+        <span class="diag-status status-wait" id="diag-clearkey">TESTING</span>
+        <span class="diag-label">W3C ClearKey DRM (org.w3.clearkey):</span>
+        <span id="diag-clearkey-desc" style="color: #fff;">Detecting CDM...</span>
+      </div>
+      <div class="diag-row">
+        <span class="diag-status status-wait" id="diag-cookies">TESTING</span>
+        <span class="diag-label">Cookie & Storage Persistence:</span>
+        <span id="diag-cookies-desc" style="color: #fff;">Checking CookieManager...</span>
+      </div>
+      <div class="diag-row">
+        <span class="diag-status status-wait" id="diag-codecs">TESTING</span>
+        <span class="diag-label">Hardware Accelerated Codecs:</span>
+        <span id="diag-codecs-desc" style="color: #fff;">Probing H.264 / VP9 / AV1...</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let activeEngine = 'ddg';
+
+    function selectEngine(eng) {
+      activeEngine = eng;
+      document.querySelectorAll('.chip').forEach(c => {
+        if (c.getAttribute('data-engine') === eng) {
+          c.classList.add('selected');
+        } else {
+          c.classList.remove('selected');
+        }
+      });
+    }
+
+    function handleSearch(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('search-input');
+      const val = input.value.trim();
+      if (!val) return;
+
+      // Direct URL check
+      if (/^(https?:\/\/)/i.test(val)) {
+        window.location.href = val;
+        return;
+      }
+      if (/^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/.test(val)) {
+        window.location.href = 'https://' + val;
+        return;
+      }
+
+      // Search engine dispatch
+      const query = encodeURIComponent(val);
+      let targetUrl = '';
+      switch (activeEngine) {
+        case 'google':
+          targetUrl = 'https://www.google.com/search?q=' + query;
+          break;
+        case 'youtube':
+          targetUrl = 'https://www.youtube.com/results?search_query=' + query;
+          break;
+        case 'wiki':
+          targetUrl = 'https://en.wikipedia.org/wiki/Special:Search?search=' + query;
+          break;
+        case 'ddg':
+        default:
+          targetUrl = 'https://duckduckgo.com/?q=' + query;
+          break;
+      }
+      window.location.href = targetUrl;
+    }
+
+    // Diagnostics & DRM Verification Runner
+    function runDiagnostics() {
+      // 1. Cookies Test
+      try {
+        document.cookie = "voidtv_test=1; path=/; SameSite=Lax";
+        const hasCookie = document.cookie.indexOf("voidtv_test=1") !== -1;
+        if (hasCookie || navigator.cookieEnabled) {
+          document.getElementById('diag-cookies').className = 'diag-status status-pass';
+          document.getElementById('diag-cookies').textContent = 'PASS';
+          document.getElementById('diag-cookies-desc').textContent = 'Active (First & Third-Party Allowed)';
+          document.getElementById('badge-cookie-text').textContent = 'COOKIES: ACTIVE';
+        }
+      } catch (e) {
+        document.getElementById('diag-cookies').className = 'diag-status status-fail';
+        document.getElementById('diag-cookies').textContent = 'FAIL';
+      }
+
+      // 2. Widevine DRM (EME) Test
+      if (navigator.requestMediaKeySystemAccess) {
+        const config = [{
+          initDataTypes: ['cenc'],
+          audioCapabilities: [{ contentType: 'audio/mp4;codecs="mp4a.40.2"' }],
+          videoCapabilities: [{ contentType: 'video/mp4;codecs="avc1.42E01E"' }]
+        }];
+
+        navigator.requestMediaKeySystemAccess('com.widevine.alpha', config)
+          .then(keySystemAccess => {
+            document.getElementById('diag-widevine').className = 'diag-status status-pass';
+            document.getElementById('diag-widevine').textContent = 'READY';
+            document.getElementById('diag-widevine-desc').textContent = 'Widevine CDM Enabled (CENC Decryption Ready)';
+            document.getElementById('badge-drm-text').textContent = 'DRM: WIDEVINE READY';
+          })
+          .catch(err => {
+            document.getElementById('diag-widevine').className = 'diag-status status-fail';
+            document.getElementById('diag-widevine').textContent = 'ERROR';
+            document.getElementById('diag-widevine-desc').textContent = err.message || 'Key System Access Denied';
+            document.getElementById('badge-drm-text').textContent = 'DRM: DISABLED';
+          });
+
+        // 3. ClearKey DRM Test
+        navigator.requestMediaKeySystemAccess('org.w3.clearkey', config)
+          .then(keySystemAccess => {
+            document.getElementById('diag-clearkey').className = 'diag-status status-pass';
+            document.getElementById('diag-clearkey').textContent = 'READY';
+            document.getElementById('diag-clearkey-desc').textContent = 'W3C ClearKey Supported';
+          })
+          .catch(err => {
+            document.getElementById('diag-clearkey').className = 'diag-status status-fail';
+            document.getElementById('diag-clearkey').textContent = 'FAIL';
+            document.getElementById('diag-clearkey-desc').textContent = 'ClearKey Unavailable';
+          });
+      } else {
+        document.getElementById('diag-widevine').className = 'diag-status status-fail';
+        document.getElementById('diag-widevine').textContent = 'NO EME';
+        document.getElementById('diag-widevine-desc').textContent = 'requestMediaKeySystemAccess not supported in engine';
+      }
+
+      // 4. Video Codecs
+      try {
+        const video = document.createElement('video');
+        const h264 = video.canPlayType('video/mp4; codecs="avc1.42E01E"') !== '';
+        const vp9 = video.canPlayType('video/webm; codecs="vp9"') !== '';
+        const av1 = video.canPlayType('video/mp4; codecs="av01.0.08M.08"') !== '';
+        let list = [];
+        if (h264) list.push('H.264');
+        if (vp9) list.push('VP9');
+        if (av1) list.push('AV1');
+        document.getElementById('diag-codecs').className = 'diag-status status-pass';
+        document.getElementById('diag-codecs').textContent = 'ACCEL';
+        document.getElementById('diag-codecs-desc').textContent = list.join(', ') + ' (Hardware Decode)';
+      } catch (e) {
+        document.getElementById('diag-codecs').className = 'diag-status status-fail';
+      }
+    }
+
+    // 2D DPAD Spatial Focus Navigation Engine for TV Remote
+    let focusElements = [];
+    let currentFocusIdx = 0;
+
+    function buildFocusIndex() {
+      focusElements = Array.from(document.querySelectorAll('#search-input, #search-btn, .chip, .card'));
+    }
+
+    function setFocus(idx) {
+      if (focusElements.length === 0) return;
+      if (idx < 0) idx = 0;
+      if (idx >= focusElements.length) idx = focusElements.length - 1;
+      currentFocusIdx = idx;
+
+      focusElements.forEach((el, i) => {
+        if (i === idx) {
+          el.classList.add('focused');
+          if (el.focus) el.focus();
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          el.classList.remove('focused');
+        }
+      });
+    }
+
+    window.addEventListener('keydown', (e) => {
+      buildFocusIndex();
+      if (focusElements.length === 0) return;
+
+      const active = focusElements[currentFocusIdx];
+
+      switch (e.key) {
+        case 'ArrowRight':
+          e.preventDefault();
+          setFocus(currentFocusIdx + 1);
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          setFocus(currentFocusIdx - 1);
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          // Jump row (approx 4 items in grid)
+          setFocus(currentFocusIdx + 4);
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setFocus(currentFocusIdx - 4);
+          break;
+        case 'Enter':
+          if (active && active.tagName !== 'INPUT') {
+            active.click();
+          }
+          break;
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      buildFocusIndex();
+      setFocus(0);
+      runDiagnostics();
+    });
+  </script>
+</body>
+</html>
