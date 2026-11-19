@@ -1,0 +1,8 @@
+build/
+bin/
+compiled_res.zip
+base_unaligned.apk
+classes.dex
+voidtv-aligned.apk
+voidtv-release.apk
+debug.keystore
