@@ -25,7 +25,10 @@ Only `/sdcard/voidtv/layout.json`, through a `FileObserver` that calls `window.H
 
 ## Remote input
 
-`MainActivity.onKeyDown` maps DPAD, ENTER, BACK, MENU and `0`–`9`, returns `true`, and forwards them into JS as `window.FocusEngine.onKey(...)`. Those keys never reach the `keydown` listener in `app.js`; only unmapped keys do. Add a new key in the native `switch` first, then handle it in `FocusEngine`, `Customizer`, or `FileManager`. The browser overlay is a separate WebView with its own Back/Menu handling and bypasses `FocusEngine` entirely.
+- `MainActivity.dispatchKeyEvent` intercepts DPAD (UP/DOWN/LEFT/RIGHT), SELECT/ENTER, BACK, MENU, and `0`–`9` on both `ACTION_DOWN` and `ACTION_UP`. It consumes them (`return true`) and forwards them into JS as `window.FocusEngine.onKey(...)`.
+- **Invariant**: Never pass raw D-pad or `DPAD_CENTER` events to `launcherWebView` via `super.dispatchKeyEvent()` in launcher mode; WebView will consume them and fire phantom touch clicks on its internally focused element (e.g. `com.apps.livetv`). Launcher WebView is configured with `setFocusable(false)` and `setFocusableInTouchMode(false)`.
+- `app.js` keydown listener uses `e.preventDefault()` on handled keys.
+- The in-app browser overlay operates via a D-pad virtual cursor overlay (`cursorView`), supporting velocity acceleration, edge auto-scrolling, touch event injection (`ACTION_DOWN` + `ACTION_UP`), and seamless focus transitions to top toolbar buttons.
 
 ## Debugging and automation
 
@@ -40,7 +43,7 @@ Drive and inspect the app through `:4444` instead — `GET /state` returns the c
 - `GET /ping` → `PONG`
 - `GET /state` → JSON (`mode`, `focus`, `items[]`, or `url`/`pretty`/`canGo[Back|Forward]`/`dialog` in browser mode). In `CUSTOMIZER` mode `focus` is the overlay's own cursor and `tab` is the open tab; row controls report labels like `INPUT SOURCES · up`.
 - `GET /inputs` → JSON array of hardware and passthrough inputs detected by `TvInputManager` (`id`, `label`, `typeName`, `isPassthrough`).
-- `GET /input?id=<HDMI1|HDMI2|AV|select>` → tunes directly to the input via `TvContract.buildChannelUriForPassthroughInput` or launches `com.android.tv.action.VIEW_INPUTS`.
+- `GET /input?id=<HDMI1|HDMI2|AV|select>` → launches the official TV input selector `com.apps.livetv/.SelectInputActivity` via `com.android.tv.action.VIEW_INPUTS` with auto-selection. Direct `TvContract.buildChannelUriForPassthroughInput` is not used because Moka/Realtek firmware leaves the hardware pipeline uninitialized.
 - `/key?k=RIGHT` → dispatches a real KeyEvent through the focused window (works in the address-bar dialog too)
 - `/tap?label=Netflix`, `/launch?pkg=...`, `/open?url=...` → JSON result
 - `POST /eval` → fire-and-forget JS in the launcher WebView
