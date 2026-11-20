@@ -270,88 +270,42 @@ public class TvBridge {
 
     @JavascriptInterface
     public boolean switchInput(String inputKey) {
-        if (inputKey == null || inputKey.trim().isEmpty() || "select".equalsIgnoreCase(inputKey.trim()) || "panel".equalsIgnoreCase(inputKey.trim())) {
-            try {
-                Intent intent = new Intent("com.android.tv.action.VIEW_INPUTS");
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                activity.startActivity(intent);
-                return true;
-            } catch (Exception e) {
-                return false;
-            }
-        }
-
-        final String key = inputKey.trim();
-
-        // 1. Direct content:// URI
-        if (key.startsWith("content://")) {
-            try {
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(key));
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                activity.startActivity(intent);
-                return true;
-            } catch (Exception ignored) {}
-        }
-
-        // 2. Query TvInputManager to resolve target passthrough inputId
-        String targetInputId = null;
-        try {
-            TvInputManager tim = (TvInputManager) activity.getSystemService(Context.TV_INPUT_SERVICE);
-            if (tim != null) {
-                List<TvInputInfo> list = tim.getTvInputList();
-                if (list != null) {
-                    String normKey = key.toUpperCase(java.util.Locale.ROOT).replace(" ", "").replace("_", "").replace("-", "");
-                    // Pass 1: exact ID match
-                    for (TvInputInfo info : list) {
-                        if (info.getId().equalsIgnoreCase(key)) {
-                            targetInputId = info.getId();
-                            break;
-                        }
-                    }
-                    // Pass 2: fuzzy match for HDMI1, HDMI2, AV, etc.
-                    if (targetInputId == null) {
-                        for (TvInputInfo info : list) {
-                            String idNorm = info.getId().toUpperCase(java.util.Locale.ROOT);
-                            CharSequence cs = info.loadLabel(activity);
-                            String labelNorm = cs != null ? cs.toString().toUpperCase(java.util.Locale.ROOT).replace(" ", "") : "";
-
-                            if (normKey.contains("HDMI1") && (idNorm.contains("HW151519488") || (idNorm.contains("HDMI") && (idNorm.contains("1") || labelNorm.contains("1"))))) {
-                                targetInputId = info.getId();
-                                break;
-                            } else if (normKey.contains("HDMI2") && (idNorm.contains("HW151519744") || (idNorm.contains("HDMI") && (idNorm.contains("2") || labelNorm.contains("2"))))) {
-                                targetInputId = info.getId();
-                                break;
-                            } else if (normKey.contains("HDMI3") && (idNorm.contains("HDMI") && (idNorm.contains("3") || labelNorm.contains("3")))) {
-                                targetInputId = info.getId();
-                                break;
-                            } else if ((normKey.contains("AV") || normKey.contains("COMPOSITE")) && (idNorm.contains("AV") || labelNorm.contains("AV") || info.getType() == TvInputInfo.TYPE_COMPOSITE)) {
-                                targetInputId = info.getId();
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
-
-        if (targetInputId != null) {
-            try {
-                Uri uri = TvContract.buildChannelUriForPassthroughInput(targetInputId);
-                Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                activity.startActivity(intent);
-                return true;
-            } catch (Exception ignored) {}
-        }
-
-        // Fallback: open system TV input selector dialog
         try {
             Intent intent = new Intent("com.android.tv.action.VIEW_INPUTS");
+            intent.setComponent(new android.content.ComponentName("com.apps.livetv", "com.apps.livetv.SelectInputActivity"));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             activity.startActivity(intent);
+
+            final String key = (inputKey != null) ? inputKey.trim().toUpperCase(java.util.Locale.ROOT) : "";
+            if (key.contains("HDMI1") || key.equals("HDMI 1")) {
+                activity.getWindow().getDecorView().postDelayed(() -> {
+                    try {
+                        Runtime.getRuntime().exec("input tap 132 255");
+                    } catch (Exception ignored) {}
+                }, 450);
+            } else if (key.contains("HDMI2") || key.equals("HDMI 2")) {
+                activity.getWindow().getDecorView().postDelayed(() -> {
+                    try {
+                        Runtime.getRuntime().exec("input tap 132 328");
+                    } catch (Exception ignored) {}
+                }, 450);
+            } else if (key.contains("AV") || key.contains("COMPOSITE")) {
+                activity.getWindow().getDecorView().postDelayed(() -> {
+                    try {
+                        Runtime.getRuntime().exec("input tap 132 401");
+                    } catch (Exception ignored) {}
+                }, 450);
+            }
             return true;
         } catch (Exception e) {
-            return false;
+            try {
+                Intent fallback = new Intent("com.android.tv.action.VIEW_INPUTS");
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(fallback);
+                return true;
+            } catch (Exception ignored) {
+                return false;
+            }
         }
     }
 

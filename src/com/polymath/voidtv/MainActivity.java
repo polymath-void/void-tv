@@ -8,10 +8,12 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.FileObserver;
+import android.os.SystemClock;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
@@ -53,7 +55,13 @@ public class MainActivity extends Activity implements LiveServer.Host {
     private Button btnHome;
     private Button btnSearch;
     private Button btnReload;
+    private Button btnCursor;
     private Button btnClose;
+    private FrameLayout webViewContainer;
+    private View cursorView;
+    private float cursorX = 640f;
+    private float cursorY = 360f;
+    private boolean isCursorActive = true;
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
     private LiveServer liveServer;
@@ -158,6 +166,7 @@ public class MainActivity extends Activity implements LiveServer.Host {
         browserUrlText.setPadding(14, 6, 14, 6);
         browserUrlText.setBackgroundColor(Color.parseColor("#12121A"));
         browserUrlText.setFocusable(true);
+        browserUrlText.setFocusableInTouchMode(true);
         browserUrlText.setOnClickListener(v -> showSearchDialog());
         browserUrlText.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
@@ -166,11 +175,21 @@ public class MainActivity extends Activity implements LiveServer.Host {
                 browserUrlText.setBackgroundColor(Color.parseColor("#12121A"));
             }
         });
+        browserUrlText.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                setCursorActive(true);
+                cursorY = 50f;
+                browserWebView.requestFocus();
+                return true;
+            }
+            return false;
+        });
         LinearLayout.LayoutParams urlParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
         urlParams.setMargins(8, 0, 8, 0);
         browserUrlText.setLayoutParams(urlParams);
 
         btnReload = createToolButton("⟳ RELOAD", v -> browserWebView.reload());
+        btnCursor = createToolButton("🖱️ CURSOR: ON", v -> toggleCursorMode());
         btnClose = createToolButton("✕ EXIT", v -> hideBrowser());
 
         toolbar.addView(btnBack);
@@ -179,6 +198,7 @@ public class MainActivity extends Activity implements LiveServer.Host {
         toolbar.addView(btnSearch);
         toolbar.addView(browserUrlText);
         toolbar.addView(btnReload);
+        toolbar.addView(btnCursor);
         toolbar.addView(btnClose);
 
         // Neon hairline progress bar
@@ -290,21 +310,55 @@ public class MainActivity extends Activity implements LiveServer.Host {
 
             @Override
             public void onHideCustomView() {
-                if (customView == null) return;
-                rootLayout.removeView(customView);
-                customView = null;
-                if (customViewCallback != null) {
-                    customViewCallback.onCustomViewHidden();
-                    customViewCallback = null;
-                }
-                browserContainer.setVisibility(View.VISIBLE);
-                browserWebView.requestFocus();
+                dismissCustomView();
             }
         });
 
-        browserContainer.addView(toolbar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 46));
+        webViewContainer = new FrameLayout(this);
+        webViewContainer.setLayoutParams(new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1.0f));
+        webViewContainer.addView(browserWebView, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        cursorView = new View(this);
+        int cursorPx = (int) (22 * getResources().getDisplayMetrics().density);
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(cursorPx, cursorPx);
+        cursorView.setLayoutParams(clp);
+        android.graphics.drawable.GradientDrawable dot = new android.graphics.drawable.GradientDrawable();
+        dot.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        dot.setColor(Color.parseColor("#9900E5FF"));
+        dot.setStroke(3, Color.WHITE);
+        cursorView.setBackground(dot);
+        cursorView.setElevation(20f);
+        webViewContainer.addView(cursorView);
+
+        browserContainer.addView(toolbar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 48));
         browserContainer.addView(browserProgressBar);
-        browserContainer.addView(browserWebView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        browserContainer.addView(webViewContainer);
+    }
+
+    public void toggleCursorMode() {
+        setCursorActive(!isCursorActive);
+    }
+
+    public void setCursorActive(boolean active) {
+        isCursorActive = active;
+        if (cursorView != null) {
+            cursorView.setVisibility(active ? View.VISIBLE : View.GONE);
+            if (active) updateCursorPosition();
+        }
+        if (btnCursor != null) {
+            btnCursor.setText(active ? "🖱️ CURSOR: ON" : "🖱️ CURSOR: OFF");
+            btnCursor.setTextColor(active ? Color.parseColor("#00E5FF") : Color.GRAY);
+        }
+    }
+
+    private void updateCursorPosition() {
+        if (cursorView != null) {
+            float half = cursorView.getWidth() > 0 ? cursorView.getWidth() / 2f : 16f;
+            cursorView.setX(cursorX - half);
+            cursorView.setY(cursorY - half);
+        }
     }
 
     private Button createToolButton(String text, View.OnClickListener listener) {
@@ -316,17 +370,32 @@ public class MainActivity extends Activity implements LiveServer.Host {
         b.setPadding(14, 4, 14, 4);
         b.setOnClickListener(listener);
         b.setFocusable(true);
+        b.setFocusableInTouchMode(true);
 
         b.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) {
                 b.setBackgroundColor(Color.parseColor("#00E5FF"));
                 b.setTextColor(Color.BLACK);
                 b.setTypeface(Typeface.DEFAULT_BOLD);
+                b.setScaleX(1.08f);
+                b.setScaleY(1.08f);
             } else {
                 b.setBackgroundColor(Color.parseColor("#181824"));
                 b.setTextColor(Color.WHITE);
                 b.setTypeface(Typeface.DEFAULT);
+                b.setScaleX(1.0f);
+                b.setScaleY(1.0f);
             }
+        });
+
+        b.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                setCursorActive(true);
+                cursorY = 50f;
+                browserWebView.requestFocus();
+                return true;
+            }
+            return false;
         });
         return b;
     }
@@ -338,6 +407,18 @@ public class MainActivity extends Activity implements LiveServer.Host {
         if (btnForward != null && browserWebView != null) {
             btnForward.setAlpha(browserWebView.canGoForward() ? 1.0f : 0.4f);
         }
+    }
+
+    private void dismissCustomView() {
+        if (customView == null) return;
+        rootLayout.removeView(customView);
+        customView = null;
+        if (customViewCallback != null) {
+            customViewCallback.onCustomViewHidden();
+            customViewCallback = null;
+        }
+        browserContainer.setVisibility(View.VISIBLE);
+        browserWebView.requestFocus();
     }
 
     public void showSearchDialog() {
@@ -550,6 +631,10 @@ public class MainActivity extends Activity implements LiveServer.Host {
                     o.put("pretty", prettyUrl(url));
                     o.put("canGoBack", browserWebView.canGoBack());
                     o.put("canGoForward", browserWebView.canGoForward());
+                    o.put("cursor", new JSONObject()
+                        .put("x", cursorX)
+                        .put("y", cursorY)
+                        .put("active", isCursorActive));
                     if (searchDialog != null && searchDialog.isShowing()) o.put("dialog", "address");
                     out[0] = o.toString();
                 }
@@ -585,6 +670,33 @@ public class MainActivity extends Activity implements LiveServer.Host {
     @Override
     public boolean tap(String label) {
         if (label == null) label = "";
+        if (browserContainer != null && browserContainer.getVisibility() == View.VISIBLE) {
+            String l = label.trim().toUpperCase(java.util.Locale.ROOT);
+            if ("CLICK".equals(l) || "ENTER".equals(l) || "SELECT".equals(l)) {
+                return key("SELECT");
+            } else if ("BACK".equals(l)) {
+                runOnUiThread(() -> {
+                    if (browserWebView.canGoBack()) browserWebView.goBack();
+                    else hideBrowser();
+                });
+                return true;
+            } else if ("HOME".equals(l)) {
+                runOnUiThread(() -> browserWebView.loadUrl(BROWSER_HOME_URL));
+                return true;
+            } else if ("SEARCH".equals(l) || "ADDRESS".equals(l)) {
+                runOnUiThread(this::showSearchDialog);
+                return true;
+            } else if ("RELOAD".equals(l) || "REFRESH".equals(l)) {
+                runOnUiThread(() -> browserWebView.reload());
+                return true;
+            } else if ("EXIT".equals(l) || "CLOSE".equals(l)) {
+                runOnUiThread(this::hideBrowser);
+                return true;
+            } else if ("CURSOR".equals(l)) {
+                runOnUiThread(this::toggleCursorMode);
+                return true;
+            }
+        }
         String r = evalSync("JSON.stringify(window.AgentAPI.tap(" + JSONObject.quote(label) + "))");
         return r != null && r.contains("\"ok\":true");
     }
@@ -684,41 +796,55 @@ public class MainActivity extends Activity implements LiveServer.Host {
         browserUrlText.setText("Loading: " + prettyUrl(url) + "...");
         browserWebView.loadUrl(url);
         browserContainer.setVisibility(View.VISIBLE);
+
+        int w = rootLayout.getWidth() > 0 ? rootLayout.getWidth() : 1280;
+        int h = rootLayout.getHeight() > 0 ? rootLayout.getHeight() : 720;
+        cursorX = w / 2f;
+        cursorY = (h - 48) / 2f;
+        setCursorActive(true);
         browserWebView.requestFocus();
     }
 
     public void hideBrowser() {
-        if (customView != null) {
-            rootLayout.removeView(customView);
-            customView = null;
-            if (customViewCallback != null) {
-                customViewCallback.onCustomViewHidden();
-                customViewCallback = null;
-            }
-        }
+        dismissCustomView();
+        setCursorActive(false);
         browserWebView.loadUrl("about:blank");
         browserContainer.setVisibility(View.GONE);
         launcherWebView.requestFocus();
     }
 
     @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // If in-app browser is active, handle browser navigation
-        if (browserContainer.getVisibility() == View.VISIBLE) {
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (browserContainer != null && browserContainer.getVisibility() == View.VISIBLE) {
             if (customView != null) {
-                if (keyCode == KeyEvent.KEYCODE_BACK) {
-                    rootLayout.removeView(customView);
-                    customView = null;
-                    if (customViewCallback != null) {
-                        customViewCallback.onCustomViewHidden();
-                        customViewCallback = null;
-                    }
-                    browserContainer.setVisibility(View.VISIBLE);
-                    browserWebView.requestFocus();
+                if (event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN) {
+                    dismissCustomView();
+                    return true;
+                }
+                return super.dispatchKeyEvent(event);
+            }
+
+            if (searchDialog != null && searchDialog.isShowing()) {
+                return super.dispatchKeyEvent(event);
+            }
+
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (handleBrowserKeyDown(event.getKeyCode(), event)) {
                     return true;
                 }
             }
+        }
+        return super.dispatchKeyEvent(event);
+    }
 
+    private boolean handleBrowserKeyDown(int keyCode, KeyEvent event) {
+        if (!isCursorActive) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                setCursorActive(true);
+                cursorY = 50f;
+                browserWebView.requestFocus();
+                return true;
+            }
             if (keyCode == KeyEvent.KEYCODE_BACK) {
                 if (browserWebView.canGoBack()) {
                     browserWebView.goBack();
@@ -727,23 +853,97 @@ public class MainActivity extends Activity implements LiveServer.Host {
                 }
                 return true;
             }
-
             if (keyCode == KeyEvent.KEYCODE_MENU) {
                 showSearchDialog();
                 return true;
             }
+            return false;
+        }
 
-            if (keyCode == KeyEvent.KEYCODE_PAGE_DOWN || keyCode == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD) {
+        // --- VIRTUAL CURSOR ACTIVE ---
+        int viewW = browserWebView.getWidth() > 0 ? browserWebView.getWidth() : 1280;
+        int viewH = browserWebView.getHeight() > 0 ? browserWebView.getHeight() : 672;
+        float step = Math.min(18f + event.getRepeatCount() * 8f, 55f);
+
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                cursorY -= step;
+                if (cursorY <= 15f) {
+                    setCursorActive(false);
+                    btnSearch.requestFocus();
+                    return true;
+                }
+                if (cursorY < 90f) {
+                    browserWebView.scrollBy(0, -60);
+                }
+                updateCursorPosition();
+                return true;
+
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                cursorY += step;
+                if (cursorY > viewH - 15f) cursorY = viewH - 15f;
+                if (cursorY > viewH - 100f) {
+                    browserWebView.scrollBy(0, 60);
+                }
+                updateCursorPosition();
+                return true;
+
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                cursorX -= step;
+                if (cursorX < 15f) cursorX = 15f;
+                updateCursorPosition();
+                return true;
+
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                cursorX += step;
+                if (cursorX > viewW - 15f) cursorX = viewW - 15f;
+                updateCursorPosition();
+                return true;
+
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                if (cursorView != null) {
+                    cursorView.animate().scaleX(0.7f).scaleY(0.7f).setDuration(80)
+                        .withEndAction(() -> cursorView.animate().scaleX(1.0f).scaleY(1.0f).setDuration(80).start())
+                        .start();
+                }
+                long now = SystemClock.uptimeMillis();
+                MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, cursorX, cursorY, 0);
+                MotionEvent up = MotionEvent.obtain(now, now + 40, MotionEvent.ACTION_UP, cursorX, cursorY, 0);
+                browserWebView.dispatchTouchEvent(down);
+                browserWebView.dispatchTouchEvent(up);
+                down.recycle();
+                up.recycle();
+                return true;
+
+            case KeyEvent.KEYCODE_BACK:
+                if (browserWebView.canGoBack()) {
+                    browserWebView.goBack();
+                } else {
+                    hideBrowser();
+                }
+                return true;
+
+            case KeyEvent.KEYCODE_MENU:
+                showSearchDialog();
+                return true;
+
+            case KeyEvent.KEYCODE_PAGE_DOWN:
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
                 browserWebView.pageDown(false);
                 return true;
-            }
-            if (keyCode == KeyEvent.KEYCODE_PAGE_UP || keyCode == KeyEvent.KEYCODE_MEDIA_REWIND) {
+
+            case KeyEvent.KEYCODE_PAGE_UP:
+            case KeyEvent.KEYCODE_MEDIA_REWIND:
                 browserWebView.pageUp(false);
                 return true;
-            }
-
-            return super.onKeyDown(keyCode, event);
         }
+
+        return false;
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
 
         // Home screen focus routing
         String key = null;
