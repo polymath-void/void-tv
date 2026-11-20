@@ -3,10 +3,13 @@ package com.polymath.voidtv;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.FileObserver;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -26,11 +29,20 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import java.io.File;
 import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
-public class MainActivity extends Activity {
+public class MainActivity extends Activity implements LiveServer.Host {
     public static final String BROWSER_HOME_URL = "file:///android_asset/runtime/browser_home.html";
+    private static final String PREFS = "voidtv_browser";
+    private static final String PREF_RECENT = "recent_urls";
 
     private FrameLayout rootLayout;
+    private TvBridge tvBridge;
     private WebView launcherWebView;
     private LinearLayout browserContainer;
     private WebView browserWebView;
@@ -46,6 +58,7 @@ public class MainActivity extends Activity {
     private WebChromeClient.CustomViewCallback customViewCallback;
     private LiveServer liveServer;
     private FileObserver fileObserver;
+    private AlertDialog searchDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -78,7 +91,7 @@ public class MainActivity extends Activity {
         setContentView(rootLayout);
 
         // Start live coding REPL server on 0.0.0.0:4444
-        liveServer = new LiveServer(4444, launcherWebView);
+        liveServer = new LiveServer(4444, launcherWebView, this);
         liveServer.start();
 
         // Watch /sdcard/voidtv for hot-reloading
@@ -103,7 +116,8 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(true);
         s.setAllowContentAccess(true);
 
-        launcherWebView.addJavascriptInterface(new TvBridge(this), "Android");
+        tvBridge = new TvBridge(this);
+        launcherWebView.addJavascriptInterface(tvBridge, "Android");
         launcherWebView.loadUrl("file:///android_asset/runtime/index.html");
     }
 
@@ -219,7 +233,7 @@ public class MainActivity extends Activity {
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
                 browserProgressBar.setVisibility(View.VISIBLE);
-                browserUrlText.setText("Loading: " + (url != null ? url : ""));
+                browserUrlText.setText("Loading: " + prettyUrl(url) + "...");
                 updateNavButtons();
             }
 
@@ -228,11 +242,10 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 browserProgressBar.setVisibility(View.GONE);
                 CookieManager.getInstance().flush();
-                String display = url != null ? url : "";
-                if (display.startsWith("https://")) {
-                    display = "🔒 " + display;
+                if (url != null && !url.startsWith("file:///")) {
+                    rememberUrl(url);
                 }
-                browserUrlText.setText(display);
+                browserUrlText.setText(prettyUrl(url));
                 updateNavButtons();
             }
         });
@@ -329,52 +342,346 @@ public class MainActivity extends Activity {
 
     public void showSearchDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert);
-        builder.setTitle("VoidTV Browser - URL or Search");
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(28, 18, 28, 22);
+        panel.setBackgroundColor(Color.parseColor("#0C0C14"));
+
+        TextView title = new TextView(this);
+        title.setText("VOID BROWSER  ·  URL OR SEARCH");
+        title.setTextColor(Color.parseColor("#00E5FF"));
+        title.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        title.setTextSize(13);
+        title.setPadding(0, 0, 0, 12);
+        panel.addView(title);
 
         final EditText input = new EditText(this);
         input.setSingleLine(true);
         input.setTextColor(Color.WHITE);
         input.setTextSize(16);
-        input.setPadding(24, 20, 24, 20);
+        input.setPadding(20, 14, 20, 14);
+        input.setBackgroundColor(Color.parseColor("#12121A"));
         String currentUrl = browserWebView != null ? browserWebView.getUrl() : "";
-        if (currentUrl != null && !currentUrl.startsWith("file:///")) {
+        if (currentUrl != null && !currentUrl.startsWith("file:///") && !"about:blank".equals(currentUrl)) {
             input.setText(currentUrl);
             input.selectAll();
         } else {
-            input.setHint("Enter URL or search term...");
+            input.setHint("example.com, 192.168.0.10:8080, or a search");
         }
-        builder.setView(input);
+        panel.addView(input, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        builder.setPositiveButton("GO / SEARCH", (dialog, which) -> {
+        final LinearLayout suggestions = new LinearLayout(this);
+        suggestions.setOrientation(LinearLayout.HORIZONTAL);
+        suggestions.setPadding(0, 14, 0, 0);
+        panel.addView(suggestions);
+
+        final AlertDialog[] holder = new AlertDialog[1];
+
+        Runnable submit = () -> {
             String val = input.getText().toString().trim();
             if (val.isEmpty()) return;
+            String url = normalizeAddress(val);
+            if (url == null) return;
+            if (holder[0] != null) holder[0].dismiss();
+            showBrowser(url);
+        };
 
-            if (val.startsWith("http://") || val.startsWith("https://")) {
-                showBrowser(val);
-            } else if (val.contains(".") && !val.contains(" ")) {
-                showBrowser("https://" + val);
-            } else {
-                try {
-                    showBrowser("https://duckduckgo.com/?q=" + URLEncoder.encode(val, "UTF-8"));
-                } catch (Exception e) {
-                    showBrowser("https://duckduckgo.com/?q=" + val);
-                }
+        input.setOnEditorActionListener((v, actionId, event) -> {
+            submit.run();
+            return true;
+        });
+        input.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                    && suggestions.getChildCount() > 0) {
+                suggestions.getChildAt(0).requestFocus();
+                return true;
+            }
+            return false;
+        });
+        input.addTextChangedListener(new TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
+            public void onTextChanged(CharSequence s, int a, int b, int c) {}
+            public void afterTextChanged(Editable s) {
+                buildSuggestions(suggestions, s.toString(), input, holder);
             }
         });
 
-        builder.setNegativeButton("CANCEL", (dialog, which) -> dialog.cancel());
+        builder.setView(panel);
+        builder.setPositiveButton("GO", (dialog, which) -> submit.run());
         builder.setNeutralButton("HOME", (dialog, which) -> showBrowser(BROWSER_HOME_URL));
+        builder.setNegativeButton("CLOSE", (dialog, which) -> dialog.cancel());
 
         AlertDialog dialog = builder.create();
+        holder[0] = dialog;
+        searchDialog = dialog;
+        dialog.setOnDismissListener(d -> {
+            holder[0] = null;
+            if (searchDialog == dialog) searchDialog = null;
+        });
+        dialog.setOnShowListener(d -> buildSuggestions(suggestions, input.getText().toString(), input, holder));
         dialog.show();
+        dialog.getWindow().setLayout(
+            (int) (getResources().getDisplayMetrics().widthPixels * 0.92f),
+            ViewGroup.LayoutParams.WRAP_CONTENT);
         input.requestFocus();
+    }
+
+    /** D-pad friendly suggestion strip under the address field. */
+    private void buildSuggestions(LinearLayout container, String raw, EditText input, AlertDialog[] holder) {
+        container.removeAllViews();
+        List<String[]> items = new ArrayList<>();
+        String q = raw == null ? "" : raw.trim();
+
+        if (!q.isEmpty()) {
+            String direct = normalizeAddress(q);
+            boolean isSearch = direct != null && direct.startsWith("https://duckduckgo.com/?q=");
+            if (direct != null && !isSearch) {
+                items.add(new String[]{"OPEN   " + shorten(prettyUrl(direct), 30), direct});
+                items.add(new String[]{"SEARCH " + shorten(q, 26), searchUrl(q)});
+            } else if (direct != null) {
+                items.add(new String[]{"SEARCH " + shorten(q, 26), direct});
+            }
+        }
+        for (String u : recentUrls()) {
+            if (items.size() >= 4) break;
+            if (!q.isEmpty() && !u.toLowerCase().contains(q.toLowerCase())) continue;
+            items.add(new String[]{"↺ " + shorten(prettyUrl(u), 32), u});
+        }
+        if (items.isEmpty()) {
+            items.add(new String[]{"↺ VoidTV Home", BROWSER_HOME_URL});
+        }
+
+        for (int i = 0; i < items.size(); i++) {
+            String[] it = items.get(i);
+            Button b = createToolButton(it[0], v -> {
+                if (holder[0] != null) holder[0].dismiss();
+                showBrowser(it[1]);
+            });
+            b.setTextSize(11);
+            b.setSingleLine(true);
+            b.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            if (i == 0) {
+                b.setOnKeyListener((v, keyCode, event) -> {
+                    if (event.getAction() == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                        input.requestFocus();
+                        return true;
+                    }
+                    return false;
+                });
+            }
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            lp.setMargins(0, 0, 8, 0);
+            container.addView(b, lp);
+        }
+    }
+
+    /** Turn whatever was typed into a real URL, or a DuckDuckGo search. */
+    private String normalizeAddress(String raw) {
+        String s = raw == null ? "" : raw.trim();
+        if (s.isEmpty()) return null;
+
+        String lower = s.toLowerCase(java.util.Locale.ROOT);
+        if (lower.matches("^(https?|file|about|content)://.*")) return s;
+        if (lower.equals("home") || lower.equals("voidtv")) return BROWSER_HOME_URL;
+        if (lower.startsWith("localhost") || lower.startsWith("127.0.0.1")) return "http://" + s;
+        if (s.matches("^\\d{1,3}(\\.\\d{1,3}){3}(:\\d+)?(/.*)?$")) return "http://" + s;
+        if (!s.contains(" ") && s.contains(".") && !s.endsWith(".")) return "https://" + s;
+        return searchUrl(s);
+    }
+
+    private String searchUrl(String q) {
+        try {
+            return "https://duckduckgo.com/?q=" + URLEncoder.encode(q, "UTF-8");
+        } catch (Exception e) {
+            return "https://duckduckgo.com/?q=" + q;
+        }
+    }
+
+    private String prettyUrl(String url) {
+        if (url == null || url.isEmpty()) return "";
+        if (url.endsWith("runtime/browser_home.html")) return "VoidTV Home";
+        boolean secure = url.startsWith("https://");
+        String s = url.replaceFirst("^https?://", "").replaceFirst("^www\\.", "");
+        if (s.endsWith("/")) s = s.substring(0, s.length() - 1);
+        return (secure ? "🔒 " : "") + s;
+    }
+
+    private static String shorten(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
+    }
+
+    private List<String> recentUrls() {
+        List<String> out = new ArrayList<>();
+        String raw = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PREF_RECENT, "");
+        if (raw != null && !raw.isEmpty()) {
+            for (String u : raw.split("\n")) {
+                if (!u.trim().isEmpty()) out.add(u.trim());
+            }
+        }
+        return out;
+    }
+
+    private void rememberUrl(String url) {
+        if (url == null || url.startsWith("data:") || url.startsWith("about:") || url.startsWith("file:")) return;
+        List<String> list = recentUrls();
+        list.remove(url);
+        list.add(0, url);
+        while (list.size() > 6) list.remove(list.size() - 1);
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+            .putString(PREF_RECENT, String.join("\n", list)).apply();
+    }
+
+    // ---------------- LiveServer.Host: agent control surface ----------------
+
+    /** JSON snapshot of what is on screen; see window.AgentAPI in app.js. */
+    @Override
+    public String state() {
+        final String[] out = {"{\"mode\":\"UNKNOWN\"}"};
+        final CountDownLatch latch = new CountDownLatch(1);
+        runOnUiThread(() -> {
+            try {
+                if (browserContainer != null && browserContainer.getVisibility() == View.VISIBLE) {
+                    JSONObject o = new JSONObject();
+                    String url = browserWebView.getUrl();
+                    o.put("mode", "BROWSER");
+                    o.put("url", url == null ? "" : url);
+                    o.put("pretty", prettyUrl(url));
+                    o.put("canGoBack", browserWebView.canGoBack());
+                    o.put("canGoForward", browserWebView.canGoForward());
+                    if (searchDialog != null && searchDialog.isShowing()) o.put("dialog", "address");
+                    out[0] = o.toString();
+                }
+            } catch (Exception ignored) {}
+            latch.countDown();
+        });
+        try { latch.await(2, TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+
+        if (!"{\"mode\":\"UNKNOWN\"}".equals(out[0])) return out[0];
+        String s = evalSync("JSON.stringify(window.AgentAPI.state())");
+        return (s == null || s.isEmpty()) ? "{\"mode\":\"UNKNOWN\"}" : s;
+    }
+
+    @Override
+    public boolean key(String name) {
+        final int code = keyCodeFor(name);
+        if (code < 0) return false;
+        runOnUiThread(() -> {
+            long now = android.os.SystemClock.uptimeMillis();
+            KeyEvent down = new KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0);
+            KeyEvent up = new KeyEvent(now, now + 20, KeyEvent.ACTION_UP, code, 0);
+            if (searchDialog != null && searchDialog.isShowing()) {
+                searchDialog.dispatchKeyEvent(down);
+                searchDialog.dispatchKeyEvent(up);
+            } else {
+                dispatchKeyEvent(down);
+                dispatchKeyEvent(up);
+            }
+        });
+        return true;
+    }
+
+    @Override
+    public boolean tap(String label) {
+        if (label == null) label = "";
+        String r = evalSync("JSON.stringify(window.AgentAPI.tap(" + JSONObject.quote(label) + "))");
+        return r != null && r.contains("\"ok\":true");
+    }
+
+    @Override
+    public boolean launch(String pkg) {
+        if (pkg == null || pkg.trim().isEmpty()) return false;
+        final boolean[] ok = {false};
+        final CountDownLatch latch = new CountDownLatch(1);
+        runOnUiThread(() -> {
+            ok[0] = tvBridge.launchApp(pkg.trim());
+            latch.countDown();
+        });
+        try { latch.await(2, TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+        return ok[0];
+    }
+
+    @Override
+    public boolean openUrl(String url) {
+        if (url == null || url.trim().isEmpty()) return false;
+        String target = normalizeAddress(url);
+        if (target == null) return false;
+        final String t = target;
+        runOnUiThread(() -> showBrowser(t));
+        return true;
+    }
+
+    @Override
+    public boolean switchInput(String input) {
+        final boolean[] ok = {false};
+        final CountDownLatch latch = new CountDownLatch(1);
+        runOnUiThread(() -> {
+            ok[0] = tvBridge.switchInput(input);
+            latch.countDown();
+        });
+        try { latch.await(2, TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+        return ok[0];
+    }
+
+    @Override
+    public String inputs() {
+        final String[] result = {"[]"};
+        final CountDownLatch latch = new CountDownLatch(1);
+        runOnUiThread(() -> {
+            result[0] = tvBridge.getTvInputs();
+            latch.countDown();
+        });
+        try { latch.await(2, TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+        return result[0];
+    }
+
+    private static int keyCodeFor(String name) {
+        if (name == null) return -1;
+        switch (name.trim().toUpperCase(java.util.Locale.ROOT)) {
+            case "UP": return KeyEvent.KEYCODE_DPAD_UP;
+            case "DOWN": return KeyEvent.KEYCODE_DPAD_DOWN;
+            case "LEFT": return KeyEvent.KEYCODE_DPAD_LEFT;
+            case "RIGHT": return KeyEvent.KEYCODE_DPAD_RIGHT;
+            case "SELECT":
+            case "ENTER":
+            case "OK": return KeyEvent.KEYCODE_DPAD_CENTER;
+            case "BACK": return KeyEvent.KEYCODE_BACK;
+            case "MENU": return KeyEvent.KEYCODE_MENU;
+            case "HOME": return KeyEvent.KEYCODE_HOME;
+            case "POWER": return KeyEvent.KEYCODE_POWER;
+            default:
+                try {
+                    int n = Integer.parseInt(name.trim());
+                    if (n >= 0 && n <= 9) return KeyEvent.KEYCODE_0 + n;
+                } catch (Exception ignored) {}
+                return -1;
+        }
+    }
+
+    /** Run JS and block the HTTP thread until WebView answers (2s cap). */
+    private String evalSync(String js) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final String[] result = new String[1];
+        launcherWebView.post(() -> launcherWebView.evaluateJavascript(js, value -> {
+            result[0] = value;
+            latch.countDown();
+        }));
+        try { latch.await(2, TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+        String v = result[0];
+        if (v == null || v.equals("null")) return null;
+        if (v.length() >= 2 && v.charAt(0) == '"') {
+            try { return new JSONArray("[" + v + "]").getString(0); }
+            catch (Exception e) { return v; }
+        }
+        return v;
     }
 
     public void showBrowser(String url) {
         if (url == null || url.trim().isEmpty() || "about:blank".equals(url)) {
             url = BROWSER_HOME_URL;
         }
-        browserUrlText.setText("Loading: " + url + "...");
+        browserUrlText.setText("Loading: " + prettyUrl(url) + "...");
         browserWebView.loadUrl(url);
         browserContainer.setVisibility(View.VISIBLE);
         browserWebView.requestFocus();

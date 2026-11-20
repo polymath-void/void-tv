@@ -8,6 +8,9 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.media.tv.TvContract;
+import android.media.tv.TvInputInfo;
+import android.media.tv.TvInputManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -223,6 +226,132 @@ public class TvBridge {
             return obj.toString();
         } catch (Exception e) {
             return "{}";
+        }
+    }
+
+    @JavascriptInterface
+    public String getTvInputs() {
+        JSONArray array = new JSONArray();
+        try {
+            TvInputManager tim = (TvInputManager) activity.getSystemService(Context.TV_INPUT_SERVICE);
+            if (tim != null) {
+                List<TvInputInfo> list = tim.getTvInputList();
+                if (list != null) {
+                    for (TvInputInfo info : list) {
+                        try {
+                            JSONObject obj = new JSONObject();
+                            String id = info.getId();
+                            obj.put("id", id);
+                            obj.put("type", info.getType());
+                            obj.put("isPassthrough", info.isPassthroughInput());
+                            CharSequence cs = info.loadLabel(activity);
+                            String label = cs != null ? cs.toString() : id;
+                            obj.put("label", label);
+
+                            String typeName = "OTHER";
+                            String upperId = id.toUpperCase(java.util.Locale.ROOT);
+                            if (info.getType() == TvInputInfo.TYPE_HDMI || upperId.contains("HDMI")) {
+                                typeName = "HDMI";
+                            } else if (info.getType() == TvInputInfo.TYPE_COMPOSITE || upperId.contains("AV")) {
+                                typeName = "AV";
+                            } else if (info.getType() == TvInputInfo.TYPE_TUNER || upperId.contains("DTV") || upperId.contains("ATV")) {
+                                typeName = "TUNER";
+                            }
+                            obj.put("typeName", typeName);
+
+                            array.put(obj);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return array.toString();
+    }
+
+    @JavascriptInterface
+    public boolean switchInput(String inputKey) {
+        if (inputKey == null || inputKey.trim().isEmpty() || "select".equalsIgnoreCase(inputKey.trim()) || "panel".equalsIgnoreCase(inputKey.trim())) {
+            try {
+                Intent intent = new Intent("com.android.tv.action.VIEW_INPUTS");
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(intent);
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        final String key = inputKey.trim();
+
+        // 1. Direct content:// URI
+        if (key.startsWith("content://")) {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(key));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(intent);
+                return true;
+            } catch (Exception ignored) {}
+        }
+
+        // 2. Query TvInputManager to resolve target passthrough inputId
+        String targetInputId = null;
+        try {
+            TvInputManager tim = (TvInputManager) activity.getSystemService(Context.TV_INPUT_SERVICE);
+            if (tim != null) {
+                List<TvInputInfo> list = tim.getTvInputList();
+                if (list != null) {
+                    String normKey = key.toUpperCase(java.util.Locale.ROOT).replace(" ", "").replace("_", "").replace("-", "");
+                    // Pass 1: exact ID match
+                    for (TvInputInfo info : list) {
+                        if (info.getId().equalsIgnoreCase(key)) {
+                            targetInputId = info.getId();
+                            break;
+                        }
+                    }
+                    // Pass 2: fuzzy match for HDMI1, HDMI2, AV, etc.
+                    if (targetInputId == null) {
+                        for (TvInputInfo info : list) {
+                            String idNorm = info.getId().toUpperCase(java.util.Locale.ROOT);
+                            CharSequence cs = info.loadLabel(activity);
+                            String labelNorm = cs != null ? cs.toString().toUpperCase(java.util.Locale.ROOT).replace(" ", "") : "";
+
+                            if (normKey.contains("HDMI1") && (idNorm.contains("HW151519488") || (idNorm.contains("HDMI") && (idNorm.contains("1") || labelNorm.contains("1"))))) {
+                                targetInputId = info.getId();
+                                break;
+                            } else if (normKey.contains("HDMI2") && (idNorm.contains("HW151519744") || (idNorm.contains("HDMI") && (idNorm.contains("2") || labelNorm.contains("2"))))) {
+                                targetInputId = info.getId();
+                                break;
+                            } else if (normKey.contains("HDMI3") && (idNorm.contains("HDMI") && (idNorm.contains("3") || labelNorm.contains("3")))) {
+                                targetInputId = info.getId();
+                                break;
+                            } else if ((normKey.contains("AV") || normKey.contains("COMPOSITE")) && (idNorm.contains("AV") || labelNorm.contains("AV") || info.getType() == TvInputInfo.TYPE_COMPOSITE)) {
+                                targetInputId = info.getId();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        if (targetInputId != null) {
+            try {
+                Uri uri = TvContract.buildChannelUriForPassthroughInput(targetInputId);
+                Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(intent);
+                return true;
+            } catch (Exception ignored) {}
+        }
+
+        // Fallback: open system TV input selector dialog
+        try {
+            Intent intent = new Intent("com.android.tv.action.VIEW_INPUTS");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(intent);
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 

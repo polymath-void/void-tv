@@ -56,6 +56,7 @@
   };
 
   let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  let ignoreReloadUntil = 0;
 
   function applyTheme() {
     if (config.theme) {
@@ -100,6 +101,8 @@
     try {
       localStorage.setItem("voidtv_layout_config", str);
     } catch (e) {}
+    // The FileObserver sees our own write; ignore that echo.
+    ignoreReloadUntil = Date.now() + 1500;
     if (window.Android && window.Android.saveConfigFile) {
       window.Android.saveConfigFile("layout.json", str);
     }
@@ -134,6 +137,77 @@
   }
 
   // Render Home Launcher
+  const SYSTEM_FOLD_KEY = 'voidtv_system_folded';
+
+  function systemFolded() {
+    try { return localStorage.getItem(SYSTEM_FOLD_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function setSystemFolded(folded) {
+    try { localStorage.setItem(SYSTEM_FOLD_KEY, folded ? '1' : '0'); } catch (e) {}
+  }
+
+  function renderBuiltins(container) {
+    const apps = (window.VoidApps && window.VoidApps.all()) || [];
+    if (apps.length === 0) return;
+    const folded = systemFolded();
+
+    const secDiv = document.createElement('div');
+    secDiv.className = 'section';
+
+    const title = document.createElement('div');
+    title.className = 'section-title';
+    title.textContent = 'VOID SYSTEM · ' + apps.length + ' APPS';
+    secDiv.appendChild(title);
+
+    const row = document.createElement('div');
+    row.className = 'row-cards';
+
+    const rowElements = [];
+
+    // Fold control: the row collapses to this single tile.
+    const foldTile = document.createElement('div');
+    foldTile.className = 'card card-fold';
+    foldTile.dataset.label = 'VOID SYSTEM';
+    foldTile.dataset.action = 'fold:system';
+    foldTile.innerHTML = `
+      <div class="card-icon"><div class="card-icon-char">${folded ? '▸' : '▾'}</div></div>
+      <div class="card-title">${folded ? 'Show apps' : 'Fold apps'}</div>
+    `;
+    foldTile.addEventListener('click', () => {
+      setSystemFolded(!systemFolded());
+      renderLayout();
+      updateFocus();
+    });
+    row.appendChild(foldTile);
+    rowElements.push(foldTile);
+
+    if (folded) {
+      secDiv.appendChild(row);
+      container.appendChild(secDiv);
+      focusMatrix.push(rowElements);
+      return;
+    }
+
+    apps.forEach((app) => {
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.dataset.label = app.label;
+      el.dataset.action = 'builtin:' + app.id;
+      el.innerHTML = `
+        <div class="card-icon"><div class="card-icon-char">${app.icon || '✦'}</div></div>
+        <div class="card-title">${app.label}</div>
+      `;
+      el.addEventListener('click', () => executeBuiltin(app.id));
+      row.appendChild(el);
+      rowElements.push(el);
+    });
+
+    secDiv.appendChild(row);
+    container.appendChild(secDiv);
+    focusMatrix.push(rowElements);
+  }
+
   function renderLayout() {
     const container = document.getElementById('tv-container');
     container.innerHTML = '';
@@ -146,6 +220,8 @@
         installedApps = [];
       }
     }
+
+    renderBuiltins(container);
 
     config.sections.forEach((section) => {
       if (section.hidden) return; // Skip hidden rows
@@ -180,10 +256,9 @@
       const rowElements = [];
       items.forEach((item) => {
         const el = document.createElement('div');
-        if (item.pkg) {
-          el.dataset.pkg = item.pkg;
-          el.dataset.label = item.label;
-        }
+        if (item.pkg) el.dataset.pkg = item.pkg;
+        if (item.action) el.dataset.action = item.action;
+        if (item.label) el.dataset.label = item.label;
 
         if (section.type === 'cards') {
           el.className = 'card';
@@ -219,24 +294,48 @@
     }
   }
 
+  // Legacy layout action names -> built-in ids. Keeps old layout.json files working.
+  const BUILTIN_ALIASES = {
+    customizer: 'launcher-settings',
+    settings: 'tv-settings',
+    browser: 'browser',
+    files: 'files',
+    favorites: 'favorites',
+    inputs: 'inputs'
+  };
+
+  function executeBuiltin(id) {
+    if (window.VoidApps && window.VoidApps.open(id)) return;
+    showToast('App unavailable: ' + id);
+  }
+
   function executeAction(item) {
-    if (item.action === 'customizer') {
-      window.Customizer.open('favs');
-    } else if (item.action === 'browser') {
-      if (window.Android && window.Android.openBrowser) {
-        window.Android.openBrowser("file:///android_asset/runtime/browser_home.html");
+    if (item.builtin) {
+      executeBuiltin(item.builtin);
+      return;
+    }
+
+    const action = item.action ? String(item.action) : '';
+    if (action.startsWith('builtin:')) {
+      executeBuiltin(action.slice('builtin:'.length));
+      return;
+    }
+    if (action && BUILTIN_ALIASES[action]) {
+      executeBuiltin(BUILTIN_ALIASES[action]);
+      return;
+    }
+
+    if (action.startsWith('input:')) {
+      const inputId = action.slice('input:'.length);
+      if (window.Android && window.Android.switchInput) {
+        window.Android.switchInput(inputId);
       } else {
-        showToast("Opening Browser...");
+        showToast("Switching input: " + (item.label || inputId));
       }
-    } else if (item.action === 'files') {
-      window.FileManager.open();
-    } else if (item.action === 'settings') {
-      if (window.Android && window.Android.openSettings) {
-        window.Android.openSettings();
-      } else {
-        showToast("Open Settings");
-      }
-    } else if (item.pkg) {
+      return;
+    }
+
+    if (item.pkg) {
       if (window.Android && window.Android.launchApp) {
         window.Android.launchApp(item.pkg);
       } else {
@@ -268,7 +367,14 @@
     renderLayout();
   }
 
+  /** Keep the WebView's UA focus ring off cards; launcher focus is class-based. */
+  function blurDomFocus() {
+    const a = document.activeElement;
+    if (a && a !== document.body && typeof a.blur === 'function') a.blur();
+  }
+
   function updateFocus() {
+    blurDomFocus();
     document.querySelectorAll('.focused').forEach(el => el.classList.remove('focused'));
 
     if (focusMatrix.length === 0) return;
@@ -292,6 +398,7 @@
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 2000);
   }
+  window.showToast = showToast;
 
   // ==========================================================
   // Dashboard & Favorites Customizer Engine
@@ -316,7 +423,7 @@
       updateFocus();
     },
 
-    switchTab: function (tab) {
+    switchTab: function (tab, keepBar) {
       this.activeTab = tab;
       document.querySelectorAll('.cz-tab').forEach(b => {
         b.classList.toggle('active', b.dataset.tab === tab);
@@ -340,9 +447,36 @@
         this.renderBackupTab(body);
       }
 
-      this.czRow = 1;
-      this.czCol = 0;
+      if (keepBar) {
+        // Stay on the tab bar so LEFT/RIGHT can keep walking the tabs.
+        this.czRow = 0;
+        this.czCol = Math.min(this.czCol, tabElements.length - 1);
+      } else {
+        this.czRow = 1;
+        this.czCol = 0;
+      }
       this.updateFocus();
+    },
+
+    /** Rebuild the active tab in place and keep the cursor on the same control. */
+    refreshCurrentTab: function () {
+      const row = this.czRow;
+      const col = this.czCol;
+      this.switchTab(this.activeTab, true);
+      this.czRow = Math.min(row, this.czMatrix.length - 1);
+      const line = this.czMatrix[this.czRow] || [];
+      this.czCol = Math.min(col, Math.max(0, line.length - 1));
+      this.updateFocus();
+    },
+
+    /** Moving onto a tab opens it; no SELECT needed. */
+    autoActivateTab: function () {
+      if (this.czRow !== 0) return;
+      const el = this.czMatrix[0] ? this.czMatrix[0][this.czCol] : null;
+      if (!el || !el.classList || !el.classList.contains('cz-tab')) return;
+      const tab = el.dataset.tab;
+      if (!tab || tab === this.activeTab) return;
+      this.switchTab(tab, true);
     },
 
     renderFavsTab: function (container) {
@@ -403,12 +537,7 @@
     },
 
     renderFavsTabRebuild: function () {
-      const body = document.getElementById('customizer-body');
-      body.innerHTML = '';
-      const tabElements = Array.from(document.querySelectorAll('.cz-tab, .customizer-close-btn'));
-      this.czMatrix = [tabElements];
-      this.renderFavsTab(body);
-      this.updateFocus();
+      this.refreshCurrentTab();
     },
 
     renderRowsTab: function (container) {
@@ -434,20 +563,24 @@
             <div class="cz-row-type">ID: ${sec.id} • Type: ${sec.type}</div>
           </div>
           <div class="cz-row-controls">
-            <button class="cz-btn cz-btn-toggle ${isHidden ? 'inactive' : 'active'}" data-action="toggle">${isHidden ? '✗ HIDDEN' : '✓ VISIBLE'}</button>
-            <button class="cz-btn" data-action="up" ${idx === 0 ? 'disabled style="opacity:0.3"' : ''}>⬆ UP</button>
-            <button class="cz-btn" data-action="down" ${idx === config.sections.length - 1 ? 'disabled style="opacity:0.3"' : ''}>⬇ DOWN</button>
+            <button class="cz-btn cz-btn-toggle ${isHidden ? 'inactive' : 'active'}" data-action="row:${sec.id}:toggle">${isHidden ? '✗ HIDDEN' : '✓ VISIBLE'}</button>
+            <button class="cz-btn" data-action="row:${sec.id}:up" ${idx === 0 ? 'disabled style="opacity:0.3"' : ''}>⬆ UP</button>
+            <button class="cz-btn" data-action="row:${sec.id}:down" ${idx === config.sections.length - 1 ? 'disabled style="opacity:0.3"' : ''}>⬇ DOWN</button>
           </div>
         `;
 
-        const btnToggle = item.querySelector('[data-action="toggle"]');
-        const btnUp = item.querySelector('[data-action="up"]');
-        const btnDown = item.querySelector('[data-action="down"]');
+        const btnToggle = item.querySelector('.cz-btn-toggle');
+        const btnUp = item.querySelector('[data-action$=":up"]');
+        const btnDown = item.querySelector('[data-action$=":down"]');
+
+        btnToggle.dataset.label = `${sec.title} · ${isHidden ? 'hidden' : 'visible'}`;
+        btnUp.dataset.label = `${sec.title} · up`;
+        btnDown.dataset.label = `${sec.title} · down`;
 
         btnToggle.addEventListener('click', () => {
           sec.hidden = !sec.hidden;
           saveConfigToStorage();
-          this.switchTab('rows');
+          this.refreshCurrentTab();
         });
 
         btnUp.addEventListener('click', () => {
@@ -456,7 +589,7 @@
             config.sections[idx - 1] = config.sections[idx];
             config.sections[idx] = temp;
             saveConfigToStorage();
-            this.switchTab('rows');
+            this.refreshCurrentTab();
           }
         });
 
@@ -466,7 +599,7 @@
             config.sections[idx + 1] = config.sections[idx];
             config.sections[idx] = temp;
             saveConfigToStorage();
-            this.switchTab('rows');
+            this.refreshCurrentTab();
           }
         });
 
@@ -517,7 +650,7 @@
           config.theme.glowColor = th.glow;
           saveConfigToStorage();
           showToast(`Applied ${th.name} Theme`);
-          this.switchTab('theme');
+          this.refreshCurrentTab();
         });
 
         grid.appendChild(card);
@@ -611,14 +744,22 @@
         case 'UP':
           if (this.czRow > 0) {
             this.czRow--;
-            this.czCol = Math.min(this.czCol, this.czMatrix[this.czRow].length - 1);
+            if (this.czRow === 0) {
+              // Enter the bar on the active tab, never on a neighbour.
+              const bar = this.czMatrix[0] || [];
+              const activeIdx = bar.findIndex(el => el.dataset && el.dataset.tab === this.activeTab);
+              this.czCol = activeIdx >= 0 ? activeIdx : 0;
+            } else {
+              this.czCol = Math.min(this.czCol, this.czMatrix[this.czRow].length - 1);
+            }
             this.updateFocus();
+            this.autoActivateTab();
           }
           break;
         case 'DOWN':
           if (this.czRow < this.czMatrix.length - 1) {
             this.czRow++;
-            this.czCol = Math.min(this.czCol, this.czMatrix[this.czRow].length - 1);
+            this.czCol = this.czRow === 1 ? 0 : Math.min(this.czCol, this.czMatrix[this.czRow].length - 1);
             this.updateFocus();
           }
           break;
@@ -626,17 +767,25 @@
           if (this.czCol > 0) {
             this.czCol--;
             this.updateFocus();
+            this.autoActivateTab();
           }
           break;
         case 'RIGHT':
           if (this.czRow < this.czMatrix.length && this.czCol < this.czMatrix[this.czRow].length - 1) {
             this.czCol++;
             this.updateFocus();
+            this.autoActivateTab();
           }
           break;
         case 'SELECT':
           const activeEl = this.czMatrix[this.czRow] ? this.czMatrix[this.czRow][this.czCol] : null;
-          if (activeEl) activeEl.click();
+          if (!activeEl) break;
+          if (this.czRow === 0 && activeEl.classList.contains('cz-tab')) {
+            // Enter the tab content from the bar.
+            this.switchTab(activeEl.dataset.tab);
+          } else {
+            activeEl.click();
+          }
           break;
         case 'BACK':
           this.close();
@@ -911,9 +1060,97 @@
   // Live Hot-Reload Engine
   window.HotReload = {
     reloadConfig: function () {
+      // Our own save echoes through the FileObserver; a mid-write read would
+      // swap in a stale config and orphan the rendered tabs' section objects.
+      if (Date.now() < ignoreReloadUntil) return;
+      // Never replace config under an open overlay; it re-renders on close.
+      if (currentMode !== 'LAUNCHER') return;
+      const before = JSON.stringify(config);
       loadConfigFromStorage();
+      if (JSON.stringify(config) === before) return;
       renderLayout();
+      updateFocus();
       showToast("Config Refreshed");
+    }
+  };
+
+  // ==========================================================
+  // Agent Control Surface (drives :4444 /state, /key, /tap)
+  // ==========================================================
+  const AGENT_SELECTOR = '.card, .chip, .cz-tab, .cz-card, .cz-theme-card, .cz-btn, .cz-action-row button, .fm-item, .fm-close-btn, .customizer-close-btn';
+
+  function agentVisible(el) {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+
+  function agentLabel(el) {
+    if (el.dataset && el.dataset.label) return String(el.dataset.label).trim();
+    return (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 48);
+  }
+
+  function agentRoot() {
+    if (currentMode === 'CUSTOMIZER') return document.getElementById('customizer-overlay');
+    if (currentMode === 'FILE_MANAGER') return document.getElementById('fm-overlay');
+    return document.getElementById('tv-container');
+  }
+
+  function agentElements() {
+    const root = agentRoot();
+    if (!root) return [];
+    return Array.from(root.querySelectorAll(AGENT_SELECTOR)).filter(agentVisible);
+  }
+
+  function agentCursor() {
+    if (currentMode === 'CUSTOMIZER' && window.Customizer) {
+      return { row: window.Customizer.czRow, col: window.Customizer.czCol };
+    }
+    if (currentMode === 'FILE_MANAGER' && window.FileManager) {
+      return { row: window.FileManager.fmRow, col: window.FileManager.fmCol };
+    }
+    return { row: currentRow, col: currentCol };
+  }
+
+  window.AgentAPI = {
+    state: function () {
+      const items = [];
+      agentElements().forEach((el) => {
+        if (items.length >= 80) return;
+        const r = el.getBoundingClientRect();
+        items.push({
+          label: agentLabel(el),
+          action: el.dataset.action || el.dataset.pkg || '',
+          focused: el.classList.contains('focused'),
+          x: Math.round(r.left + r.width / 2),
+          y: Math.round(r.top + r.height / 2)
+        });
+      });
+      const out = {
+        mode: currentMode,
+        focus: agentCursor(),
+        count: items.length,
+        items: items
+      };
+      if (currentMode === 'CUSTOMIZER') out.tab = window.Customizer.activeTab;
+      return out;
+    },
+
+    tap: function (label) {
+      const want = String(label || '').trim().toLowerCase();
+      if (!want) return { ok: false, error: 'empty label' };
+      const els = agentElements();
+      const target = els.find((el) => agentLabel(el).toLowerCase() === want) ||
+                     els.find((el) => agentLabel(el).toLowerCase().includes(want));
+      if (!target) return { ok: false, error: 'no match', label: label };
+      target.click();
+      blurDomFocus();
+      return { ok: true, label: agentLabel(target) };
+    },
+
+    key: function (key) {
+      const k = String(key || '').toUpperCase();
+      window.FocusEngine.onKey(k);
+      return { ok: true, key: k };
     }
   };
 
@@ -937,4 +1174,11 @@
   initClock();
   loadConfigFromStorage();
   renderLayout();
+
+  // Start on the first user row; the pinned VOID SYSTEM row stays one press up.
+  if (currentMode === 'LAUNCHER' && focusMatrix.length > 1) {
+    currentRow = 1;
+    currentCol = 0;
+    updateFocus();
+  }
 })();

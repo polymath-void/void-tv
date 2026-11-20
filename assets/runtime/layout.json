@@ -18,24 +18,14 @@
       ]
     },
     {
-      "id": "tools",
-      "title": "VOID SYSTEM TOOLS",
-      "type": "cards",
-      "items": [
-        { "label": "Dashboard Config", "action": "customizer", "icon": "🎛️" },
-        { "label": "Web Browser", "action": "browser", "icon": "🌐" },
-        { "label": "File Manager", "action": "files", "icon": "📁" },
-        { "label": "TV Settings", "action": "settings", "icon": "⚙" }
-      ]
-    },
-    {
       "id": "inputs",
       "title": "INPUT SOURCES",
       "type": "chips",
       "items": [
         { "label": "HDMI 1", "action": "input:HDMI1" },
         { "label": "HDMI 2", "action": "input:HDMI2" },
-        { "label": "AV / Composite", "action": "input:AV" }
+        { "label": "AV / Composite", "action": "input:AV" },
+        { "label": "All Inputs...", "action": "input:select" }
       ]
     },
     {
