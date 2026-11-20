@@ -112,6 +112,6 @@
     label: 'Reload Layout',
     icon: '⟳',
     order: 60,
-    run: () => window.HotReload.reloadConfig()
+    run: () => window.HotReload.reloadConfig(true)
   });
 })();

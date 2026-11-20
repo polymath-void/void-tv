@@ -1059,18 +1059,18 @@
 
   // Live Hot-Reload Engine
   window.HotReload = {
-    reloadConfig: function () {
+    reloadConfig: function (force) {
       // Our own save echoes through the FileObserver; a mid-write read would
       // swap in a stale config and orphan the rendered tabs' section objects.
-      if (Date.now() < ignoreReloadUntil) return;
+      if (!force && Date.now() < ignoreReloadUntil) return;
       // Never replace config under an open overlay; it re-renders on close.
       if (currentMode !== 'LAUNCHER') return;
       const before = JSON.stringify(config);
       loadConfigFromStorage();
-      if (JSON.stringify(config) === before) return;
+      if (!force && JSON.stringify(config) === before) return;
       renderLayout();
       updateFocus();
-      showToast("Config Refreshed");
+      showToast("Layout Refreshed ⟳");
     }
   };
 
@@ -1157,15 +1157,16 @@
   // Keyboard navigation fallback
   window.addEventListener('keydown', (e) => {
     switch (e.key) {
-      case 'ArrowUp': window.FocusEngine.onKey('UP'); break;
-      case 'ArrowDown': window.FocusEngine.onKey('DOWN'); break;
-      case 'ArrowLeft': window.FocusEngine.onKey('LEFT'); break;
-      case 'ArrowRight': window.FocusEngine.onKey('RIGHT'); break;
-      case 'Enter': window.FocusEngine.onKey('SELECT'); break;
-      case 'Backspace': window.FocusEngine.onKey('BACK'); break;
+      case 'ArrowUp': e.preventDefault(); window.FocusEngine.onKey('UP'); break;
+      case 'ArrowDown': e.preventDefault(); window.FocusEngine.onKey('DOWN'); break;
+      case 'ArrowLeft': e.preventDefault(); window.FocusEngine.onKey('LEFT'); break;
+      case 'ArrowRight': e.preventDefault(); window.FocusEngine.onKey('RIGHT'); break;
+      case 'Enter': e.preventDefault(); window.FocusEngine.onKey('SELECT'); break;
+      case 'Backspace': e.preventDefault(); window.FocusEngine.onKey('BACK'); break;
       case 'm':
       case 'M':
       case 'ContextMenu':
+        e.preventDefault();
         window.FocusEngine.onKey('MENU');
         break;
     }

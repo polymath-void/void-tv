@@ -118,6 +118,8 @@ public class MainActivity extends Activity implements LiveServer.Host {
 
     private void setupLauncherWebView() {
         launcherWebView = new WebView(this);
+        launcherWebView.setFocusable(false);
+        launcherWebView.setFocusableInTouchMode(false);
         WebSettings s = launcherWebView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -833,7 +835,23 @@ public class MainActivity extends Activity implements LiveServer.Host {
                     return true;
                 }
             }
+            return super.dispatchKeyEvent(event);
         }
+
+        // --- LAUNCHER MODE ---
+        // Intercept all navigation and action keys so WebView never receives raw DPAD_CENTER
+        // or executes phantom clicks on background elements (e.g. HDMI / Live TV).
+        if (searchDialog != null && searchDialog.isShowing()) {
+            return super.dispatchKeyEvent(event);
+        }
+
+        if (isLauncherNavKey(event.getKeyCode())) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                handleLauncherKeyDown(event.getKeyCode(), event);
+            }
+            return true;
+        }
+
         return super.dispatchKeyEvent(event);
     }
 
@@ -942,10 +960,24 @@ public class MainActivity extends Activity implements LiveServer.Host {
         return false;
     }
 
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
+    private boolean isLauncherNavKey(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+            case KeyEvent.KEYCODE_BACK:
+            case KeyEvent.KEYCODE_MENU:
+                return true;
+            default:
+                return keyCode >= KeyEvent.KEYCODE_0 && keyCode <= KeyEvent.KEYCODE_9;
+        }
+    }
 
-        // Home screen focus routing
+    private boolean handleLauncherKeyDown(int keyCode, KeyEvent event) {
         String key = null;
         switch (keyCode) {
             case KeyEvent.KEYCODE_DPAD_UP: key = "UP"; break;
@@ -953,7 +985,8 @@ public class MainActivity extends Activity implements LiveServer.Host {
             case KeyEvent.KEYCODE_DPAD_LEFT: key = "LEFT"; break;
             case KeyEvent.KEYCODE_DPAD_RIGHT: key = "RIGHT"; break;
             case KeyEvent.KEYCODE_DPAD_CENTER:
-            case KeyEvent.KEYCODE_ENTER: key = "SELECT"; break;
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER: key = "SELECT"; break;
             case KeyEvent.KEYCODE_BACK: key = "BACK"; break;
             case KeyEvent.KEYCODE_MENU: key = "MENU"; break;
             case KeyEvent.KEYCODE_0: case KeyEvent.KEYCODE_1: case KeyEvent.KEYCODE_2:
@@ -969,6 +1002,14 @@ public class MainActivity extends Activity implements LiveServer.Host {
             launcherWebView.post(() -> {
                 launcherWebView.evaluateJavascript("window.FocusEngine && window.FocusEngine.onKey('" + finalKey + "');", null);
             });
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (handleLauncherKeyDown(keyCode, event)) {
             return true;
         }
         return super.onKeyDown(keyCode, event);
