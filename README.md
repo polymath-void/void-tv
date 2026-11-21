@@ -84,19 +84,33 @@ VoidTV separates persistent shell tools from user-editable layout data:
 
 ---
 
-## 4. Live Coding & Agent Control Plane (`:4444`)
+## 4. In-Built Web Server & PWA Remote Controller (`:4444`)
 
-`LiveServer.java` embeds a lightweight, zero-CPU blocking HTTP daemon on port `4444`. It provides complete remote observability and headless automation for AI agents and developers.
+`LiveServer.java` embeds a lightweight, zero-CPU blocking HTTP daemon on port `4444`. In addition to providing complete remote observability and headless automation for AI agents, it hosts an installable **Progressive Web App (PWA) TV Remote Controller** directly from the TV:
+
+- **100% Standalone TV Operation**: Navigate using the ergonomic D-pad, Back, Home, Menu, Power, Volume (`VOL+`, `VOL-`, `MUTE`), and Media playback controls.
+- **Full Smartphone Keyboard**: Type text, URLs, and search queries on your mobile keyboard and send them directly to the TV (`/text?t=...`), or use real-time keystroke mode (`/key?k=...` forwarding `A`-`Z`, `0`-`9`, `SPACE`, `BACKSPACE`, `ENTER`).
+- **In-App Browser Touchpad**: Drag surface with cursor acceleration and tap-to-click (`/mouse?dx=..&dy=..&click=..`).
+- **Live Installed Apps Grid**: Browse and launch TV apps with real icons extracted from Android `PackageManager` (`/apps`, `/launch?pkg=..`).
+- **TV Hardware Input Switcher**: Switch to HDMI 1, HDMI 2, or AV with one tap (`/inputs`, `/input?id=..`).
+- **PWA Installation**: Open `http://<tv-ip>:4444` on iOS Safari or Android Chrome and tap "Add to Home Screen" or "Install App". The remote runs in standalone mode offline or online with zero dependencies.
 
 ### Endpoints
 
 | Endpoint | Method | Description |
 | --- | --- | --- |
+| `/` | `GET` | Serves the VoidTV Remote Controller PWA application shell. |
+| `/manifest.webmanifest` | `GET` | Web App Manifest with icons, standalone display mode, and theme color. |
+| `/sw.js` | `GET` | Service worker for offline shell caching and fast load. |
 | `/ping` | `GET` | Returns `PONG` health check. |
 | `/state` | `GET` | Dumps active mode, cursor coordinates, and visible UI targets with center coordinates. |
+| `/apps` | `GET` | Dumps JSON array of installed TV apps with package names and base64 icons. |
 | `/inputs` | `GET` | Dumps JSON array of detected TV inputs (HDMI, AV, Tuner). |
 | `/input?id=<ID>` | `GET` | Switches hardware input to specified port or opens input panel. |
-| `/key?k=<KEY>` | `GET` | Injects hardware KeyEvent (`UP`, `DOWN`, `LEFT`, `RIGHT`, `SELECT`, `BACK`, `MENU`, `HOME`, `0-9`). |
+| `/key?k=<KEY>` | `GET` | Injects hardware KeyEvent (`UP`, `DOWN`, `LEFT`, `RIGHT`, `SELECT`, `BACK`, `MENU`, `HOME`, `POWER`, `VOL_UP`, `VOL_DOWN`, `MUTE`, `PLAY_PAUSE`, `A-Z`, `0-9`, `SPACE`, `BACKSPACE`, `ENTER`). |
+| `/text?t=<TXT>` | `GET` | Injects text / URL into TV search dialog, browser, or active field. |
+| `/mouse?dx=&dy=&click=` | `GET` | Moves in-app browser cursor by relative deltas and triggers clicks. |
+| `/volume?v=<ACTION>` | `GET` | Adjusts TV system volume (`VOL_UP`, `VOL_DOWN`, `MUTE`). |
 | `/tap?label=<TXT>` | `GET` | Clicks on-screen card or button by label matching. |
 | `/launch?pkg=<PKG>`| `GET` | Launches application package directly via `PackageManager`. |
 | `/open?url=<URL>` | `GET` | Opens target URL inside the in-app DRM browser overlay. |

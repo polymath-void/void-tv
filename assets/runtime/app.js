@@ -131,6 +131,16 @@
           }
         } catch (e) {}
       }
+
+      if (window.Android && window.Android.getLocalIpAddress) {
+        try {
+          const ip = window.Android.getLocalIpAddress();
+          if (ip && ip !== '127.0.0.1') {
+            const el = document.getElementById('hud-remote');
+            if (el) el.textContent = `REMOTE: ${ip}:4444`;
+          }
+        } catch (e) {}
+      }
     }
     setInterval(update, 1000);
     update();

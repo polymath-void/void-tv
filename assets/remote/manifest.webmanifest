@@ -1,0 +1,63 @@
+{
+  "name": "VoidTV Remote",
+  "short_name": "Void Remote",
+  "description": "Sovereign standalone TV remote controller with full keyboard, D-pad, trackpad, and app launcher for VoidTV",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0A0A10",
+  "theme_color": "#00E5FF",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "D-Pad Remote",
+      "short_name": "Remote",
+      "url": "/#tab-remote",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Keyboard",
+      "short_name": "Keyboard",
+      "url": "/#tab-keyboard",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Touchpad",
+      "short_name": "Touchpad",
+      "url": "/#tab-touchpad",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "TV Apps",
+      "short_name": "Apps",
+      "url": "/#tab-apps",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

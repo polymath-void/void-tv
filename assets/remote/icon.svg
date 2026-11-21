@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#182A3A"/>
+      <stop offset="100%" stop-color="#0A0A10"/>
+    </radialGradient>
+    <linearGradient id="neonCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F0FF"/>
+      <stop offset="100%" stop-color="#00A2FF"/>
+    </linearGradient>
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#161824"/>
+      <stop offset="100%" stop-color="#0E0F17"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="100" fill="url(#bgGlow)"/>
+
+  <!-- Remote Body Outline -->
+  <rect x="146" y="56" width="220" height="400" rx="42" fill="url(#bodyGrad)" stroke="#2A2D40" stroke-width="4"/>
+  <rect x="150" y="60" width="212" height="392" rx="38" fill="none" stroke="#00E5FF" stroke-opacity="0.25" stroke-width="2"/>
+
+  <!-- Remote IR Emitter Sensor -->
+  <rect x="236" y="46" width="40" height="10" rx="5" fill="#00E5FF" opacity="0.8"/>
+
+  <!-- Top Indicator LEDs & Power Button -->
+  <circle cx="190" cy="100" r="14" fill="#1C1F2E" stroke="#FF5252" stroke-width="2.5"/>
+  <circle cx="190" cy="100" r="6" fill="#FF5252"/>
+  <circle cx="322" cy="100" r="14" fill="#1C1F2E" stroke="#00E5FF" stroke-width="2.5"/>
+  <polygon points="320,93 328,100 320,107" fill="#00E5FF"/>
+
+  <!-- D-Pad Circular Console -->
+  <g transform="translate(256, 230)">
+    <!-- D-Pad Outer Ring -->
+    <circle cx="0" cy="0" r="76" fill="#12131D" stroke="#2D3248" stroke-width="3"/>
+    <circle cx="0" cy="0" r="76" fill="none" stroke="url(#neonCyan)" stroke-width="2" opacity="0.6"/>
+
+    <!-- Up Arrow -->
+    <polygon points="0,-64 -14,-42 14,-42" fill="#00E5FF"/>
+    <!-- Down Arrow -->
+    <polygon points="0,64 -14,42 14,42" fill="#00E5FF"/>
+    <!-- Left Arrow -->
+    <polygon points="-64,0 -42,-14 -42,14" fill="#00E5FF"/>
+    <!-- Right Arrow -->
+    <polygon points="64,0 42,-14 42,14" fill="#00E5FF"/>
+
+    <!-- Center OK Button with Glow -->
+    <circle cx="0" cy="0" r="30" fill="#1B1E2E" stroke="#00E5FF" stroke-width="3" filter="url(#glow)"/>
+    <text x="0" y="7" font-family="monospace, sans-serif" font-weight="900" font-size="16" fill="#00E5FF" text-anchor="middle">OK</text>
+  </g>
+
+  <!-- Navigation Buttons (Back, Home, Menu) -->
+  <g transform="translate(182, 345)">
+    <rect x="0" y="0" width="38" height="24" rx="8" fill="#1B1E2E" stroke="#3A3F58" stroke-width="1.5"/>
+    <polygon points="14,12 24,6 24,18" fill="#A0A8C0"/>
+  </g>
+  <g transform="translate(237, 345)">
+    <rect x="0" y="0" width="38" height="24" rx="8" fill="#1B1E2E" stroke="#3A3F58" stroke-width="1.5"/>
+    <path d="M 12 17 L 12 12 L 19 6 L 26 12 L 26 17 Z" fill="#A0A8C0"/>
+  </g>
+  <g transform="translate(292, 345)">
+    <rect x="0" y="0" width="38" height="24" rx="8" fill="#1B1E2E" stroke="#3A3F58" stroke-width="1.5"/>
+    <line x1="12" y1="9" x2="26" y2="9" stroke="#A0A8C0" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="12" y1="13" x2="26" y2="13" stroke="#A0A8C0" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="12" y1="17" x2="26" y2="17" stroke="#A0A8C0" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Volume & Channel Rockers -->
+  <rect x="182" y="388" width="60" height="34" rx="10" fill="#181A26" stroke="#2E3348" stroke-width="1.5"/>
+  <text x="212" y="410" font-family="monospace, sans-serif" font-weight="bold" font-size="13" fill="#00E5FF" text-anchor="middle">VOL</text>
+
+  <rect x="270" y="388" width="60" height="34" rx="10" fill="#181A26" stroke="#2E3348" stroke-width="1.5"/>
+  <text x="300" y="410" font-family="monospace, sans-serif" font-weight="bold" font-size="13" fill="#00E5FF" text-anchor="middle">CH</text>
+</svg>

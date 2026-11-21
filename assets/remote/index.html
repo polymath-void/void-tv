@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>VoidTV Remote</title>
+  
+  <meta name="theme-color" content="#00E5FF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Void Remote">
+  
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="stylesheet" href="/remote.css">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top HUD Header -->
+    <header class="hud-bar">
+      <div class="hud-status">
+        <span class="pulse-dot" id="conn-dot"></span>
+        <span class="conn-text" id="conn-text">TV ONLINE</span>
+      </div>
+      <div class="tv-mode-badge" id="tv-mode-badge">LAUNCHER</div>
+      <div class="hud-actions">
+        <button class="hud-btn install-btn" id="btn-install" style="display: none;" title="Install App">📥 INSTALL</button>
+        <button class="hud-btn power-btn" id="btn-power" title="TV Power">⏻</button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="remote">🎮 REMOTE</button>
+      <button class="tab-btn" data-tab="keyboard">⌨️ KEYS</button>
+      <button class="tab-btn" data-tab="touchpad">🖱️ MOUSE</button>
+      <button class="tab-btn" data-tab="apps">📱 APPS</button>
+      <button class="tab-btn" data-tab="inputs">📺 INPUTS</button>
+    </nav>
+
+    <!-- Main Viewport Area -->
+    <main class="panels-container">
+      <!-- 1. D-Pad & Remote Panel -->
+      <section class="panel active" id="panel-remote">
+        <!-- Volume & Page Rockers -->
+        <div class="rocker-row">
+          <div class="rocker-group">
+            <button class="rocker-btn" data-key="VOL_DOWN" title="Volume Down">VOL -</button>
+            <button class="rocker-btn" data-key="MUTE" title="Mute Audio">🔇</button>
+            <button class="rocker-btn" data-key="VOL_UP" title="Volume Up">VOL +</button>
+          </div>
+          <div class="rocker-group">
+            <button class="rocker-btn" data-key="PAGE_UP" title="Page Up">PG ▲</button>
+            <button class="rocker-btn" data-key="INFO" title="TV Info">ℹ️</button>
+            <button class="rocker-btn" data-key="PAGE_DOWN" title="Page Down">PG ▼</button>
+          </div>
+        </div>
+
+        <!-- Ergonomic D-Pad -->
+        <div class="dpad-wrapper">
+          <div class="dpad-disc">
+            <button class="dpad-btn dpad-up" data-key="UP" aria-label="Up">▲</button>
+            <button class="dpad-btn dpad-left" data-key="LEFT" aria-label="Left">◀</button>
+            <button class="dpad-btn dpad-center" data-key="SELECT" aria-label="OK">
+              <span>OK</span>
+            </button>
+            <button class="dpad-btn dpad-right" data-key="RIGHT" aria-label="Right">▶</button>
+            <button class="dpad-btn dpad-down" data-key="DOWN" aria-label="Down">▼</button>
+          </div>
+        </div>
+
+        <!-- Core TV Nav Keys -->
+        <div class="nav-pills-row">
+          <button class="pill-btn" data-key="BACK">◀ BACK</button>
+          <button class="pill-btn primary" data-key="HOME">⌂ HOME</button>
+          <button class="pill-btn" data-key="MENU">☰ MENU</button>
+        </div>
+
+        <!-- Media Playback Strip -->
+        <div class="media-row">
+          <button class="media-btn" data-key="PREV" title="Previous">⏮</button>
+          <button class="media-btn" data-key="REWIND" title="Rewind">⏪</button>
+          <button class="media-btn play-btn" data-key="PLAY_PAUSE" title="Play/Pause">⏯</button>
+          <button class="media-btn" data-key="FAST_FORWARD" title="Fast Forward">⏩</button>
+          <button class="media-btn" data-key="NEXT" title="Next">⏭</button>
+        </div>
+
+        <!-- Numeric Shortcuts (Foldable) -->
+        <div class="num-keypad">
+          <div class="num-row">
+            <button class="num-btn" data-key="1">1</button>
+            <button class="num-btn" data-key="2">2</button>
+            <button class="num-btn" data-key="3">3</button>
+          </div>
+          <div class="num-row">
+            <button class="num-btn" data-key="4">4</button>
+            <button class="num-btn" data-key="5">5</button>
+            <button class="num-btn" data-key="6">6</button>
+          </div>
+          <div class="num-row">
+            <button class="num-btn" data-key="7">7</button>
+            <button class="num-btn" data-key="8">8</button>
+            <button class="num-btn" data-key="9">9</button>
+          </div>
+          <div class="num-row">
+            <button class="num-btn alt" data-key="SEARCH">🔍</button>
+            <button class="num-btn" data-key="0">0</button>
+            <button class="num-btn alt" data-key="BACKSPACE">⌫</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. Keyboard & Live Typing Panel -->
+      <section class="panel" id="panel-keyboard">
+        <div class="kb-card">
+          <div class="kb-header">
+            <span class="kb-title">TEXT INJECTION &amp; SEARCH</span>
+            <span class="kb-hint">Type on phone to send to TV</span>
+          </div>
+          <div class="kb-input-wrap">
+            <input type="text" id="kb-text-input" class="kb-text-input" placeholder="Enter URL, search query, or text..." autocomplete="off" autocapitalize="none">
+            <button class="kb-clear-btn" id="kb-btn-clear">✕</button>
+          </div>
+          <div class="kb-actions-row">
+            <button class="action-btn primary" id="kb-btn-send">🚀 SEND TO TV</button>
+            <button class="action-btn secondary" id="kb-btn-browser">🌐 OPEN IN BROWSER</button>
+          </div>
+        </div>
+
+        <!-- Live Keystroke Mode -->
+        <div class="kb-card live-typing-card">
+          <div class="live-typing-header">
+            <div>
+              <div class="live-typing-title">REAL-TIME KEYSTROKE MODE</div>
+              <div class="live-typing-desc">Every character typed forwards immediately to the TV</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="kb-toggle-live">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="live-input-box" id="live-input-container" style="display: none;">
+            <input type="text" id="live-key-capturer" class="live-key-capturer" placeholder="Tap here to activate phone keyboard..." autocomplete="off">
+            <div class="live-typing-status" id="live-typing-status">Keystroke listener active. Press keys on your phone.</div>
+          </div>
+        </div>
+
+        <!-- Fast Shortcut Keys Strip -->
+        <div class="quick-keys-grid">
+          <button class="quick-btn" data-key="SPACE">SPACE</button>
+          <button class="quick-btn" data-key="BACKSPACE">BACKSPACE ⌫</button>
+          <button class="quick-btn" data-key="ENTER">ENTER ↵</button>
+          <button class="quick-btn" data-key="TAB">TAB ⇥</button>
+          <button class="quick-btn quick-text" data-text="https://">https://</button>
+          <button class="quick-btn quick-text" data-text=".com">.com</button>
+          <button class="quick-btn quick-text" data-text="youtube">youtube</button>
+          <button class="quick-btn quick-text" data-text="fast.com">fast.com</button>
+        </div>
+      </section>
+
+      <!-- 3. In-App Browser Virtual Touchpad Panel -->
+      <section class="panel" id="panel-touchpad">
+        <div class="touchpad-toolbar">
+          <button class="tp-tool-btn" id="tp-btn-back" title="Back">◀</button>
+          <button class="tp-tool-btn" id="tp-btn-fwd" title="Forward">▶</button>
+          <button class="tp-tool-btn" id="tp-btn-home" title="Browser Home">🏠</button>
+          <button class="tp-tool-btn" id="tp-btn-reload" title="Reload">⟳</button>
+          <button class="tp-tool-btn" id="tp-btn-search" title="Search URL">🔍</button>
+          <button class="tp-tool-btn exit-btn" id="tp-btn-exit" title="Exit Browser">✕ EXIT</button>
+        </div>
+
+        <div class="touchpad-surface" id="touchpad-surface">
+          <div class="touchpad-crosshair"></div>
+          <div class="touchpad-hint">DRAG TO MOVE CURSOR · TAP TO CLICK</div>
+        </div>
+
+        <div class="touchpad-click-bar">
+          <button class="tp-click-btn" id="tp-btn-click">🖱️ CLICK (SELECT)</button>
+          <button class="tp-click-btn secondary" id="tp-btn-scroll-up">▲ SCROLL</button>
+          <button class="tp-click-btn secondary" id="tp-btn-scroll-down">▼ SCROLL</button>
+        </div>
+      </section>
+
+      <!-- 4. Installed TV Apps Panel -->
+      <section class="panel" id="panel-apps">
+        <div class="apps-search-bar">
+          <input type="text" id="apps-filter-input" class="apps-filter-input" placeholder="🔍 Search installed TV apps...">
+          <button class="refresh-apps-btn" id="apps-btn-refresh" title="Reload Apps">⟳</button>
+        </div>
+        <div class="apps-grid" id="apps-grid">
+          <div class="apps-loading">Loading TV apps...</div>
+        </div>
+      </section>
+
+      <!-- 5. Hardware TV Inputs Panel -->
+      <section class="panel" id="panel-inputs">
+        <div class="inputs-title">HARDWARE &amp; PASSTHROUGH INPUTS</div>
+        <div class="inputs-grid" id="inputs-grid">
+          <button class="input-card" data-input="HDMI1">
+            <span class="input-icon">🔌</span>
+            <span class="input-name">HDMI 1</span>
+            <span class="input-tag">High-Speed Port</span>
+          </button>
+          <button class="input-card" data-input="HDMI2">
+            <span class="input-icon">🎮</span>
+            <span class="input-name">HDMI 2</span>
+            <span class="input-tag">Console / Media</span>
+          </button>
+          <button class="input-card" data-input="AV">
+            <span class="input-icon">📻</span>
+            <span class="input-name">AV / Composite</span>
+            <span class="input-tag">Legacy Analog</span>
+          </button>
+          <button class="input-card" data-input="select">
+            <span class="input-icon">📑</span>
+            <span class="input-name">Input Menu</span>
+            <span class="input-tag">Native TV Panel</span>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Toast -->
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <script src="/remote.js"></script>
+</body>
+</html>

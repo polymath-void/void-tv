@@ -99,7 +99,7 @@ public class MainActivity extends Activity implements LiveServer.Host {
         setContentView(rootLayout);
 
         // Start live coding REPL server on 0.0.0.0:4444
-        liveServer = new LiveServer(4444, launcherWebView, this);
+        liveServer = new LiveServer(4444, launcherWebView, this, this);
         liveServer.start();
 
         // Watch /sdcard/voidtv for hot-reloading
@@ -750,9 +750,104 @@ public class MainActivity extends Activity implements LiveServer.Host {
         return result[0];
     }
 
+    @Override
+    public String apps() {
+        final String[] result = {"[]"};
+        final CountDownLatch latch = new CountDownLatch(1);
+        runOnUiThread(() -> {
+            try {
+                result[0] = tvBridge.getInstalledApps();
+            } catch (Exception ignored) {}
+            latch.countDown();
+        });
+        try { latch.await(2, TimeUnit.SECONDS); } catch (InterruptedException ignored) {}
+        return result[0];
+    }
+
+    @Override
+    public boolean sendText(String text) {
+        if (text == null || text.isEmpty()) return false;
+        runOnUiThread(() -> {
+            try {
+                if (searchDialog != null && searchDialog.isShowing()) {
+                    View focus = searchDialog.getCurrentFocus();
+                    if (focus instanceof EditText) {
+                        ((EditText) focus).setText(text);
+                        ((EditText) focus).setSelection(text.length());
+                        return;
+                    }
+                }
+                if (browserContainer != null && browserContainer.getVisibility() == View.VISIBLE) {
+                    showBrowser(normalizeAddress(text));
+                    return;
+                }
+                if (text.startsWith("http://") || text.startsWith("https://") || text.contains(".com") || text.contains(".org") || text.contains(".net") || text.contains(".io")) {
+                    showBrowser(normalizeAddress(text));
+                } else {
+                    new Thread(() -> {
+                        try {
+                            Runtime.getRuntime().exec(new String[]{"input", "text", text.replace(" ", "%s")});
+                        } catch (Exception ignored) {}
+                    }).start();
+                }
+            } catch (Exception ignored) {}
+        });
+        return true;
+    }
+
+    @Override
+    public boolean mouse(float dx, float dy, boolean click) {
+        runOnUiThread(() -> {
+            if (browserContainer != null && browserContainer.getVisibility() == View.VISIBLE) {
+                int viewW = browserWebView.getWidth() > 0 ? browserWebView.getWidth() : 1280;
+                int viewH = browserWebView.getHeight() > 0 ? browserWebView.getHeight() : 672;
+                cursorX = Math.max(15f, Math.min(viewW - 15f, cursorX + dx));
+                cursorY = Math.max(15f, Math.min(viewH - 15f, cursorY + dy));
+                setCursorActive(true);
+                updateCursorPosition();
+                if (click) {
+                    long now = SystemClock.uptimeMillis();
+                    MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, cursorX, cursorY, 0);
+                    MotionEvent up = MotionEvent.obtain(now, now + 40, MotionEvent.ACTION_UP, cursorX, cursorY, 0);
+                    browserWebView.dispatchTouchEvent(down);
+                    browserWebView.dispatchTouchEvent(up);
+                    down.recycle();
+                    up.recycle();
+                }
+            }
+        });
+        return true;
+    }
+
+    @Override
+    public boolean volume(String action) {
+        if (action == null) return false;
+        String act = action.trim().toUpperCase(java.util.Locale.ROOT);
+        runOnUiThread(() -> {
+            android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+            if (am != null) {
+                if ("VOL_UP".equals(act) || "UP".equals(act) || "VOLUME_UP".equals(act)) {
+                    am.adjustSuggestedStreamVolume(android.media.AudioManager.ADJUST_RAISE,
+                        android.media.AudioManager.USE_DEFAULT_STREAM_TYPE,
+                        android.media.AudioManager.FLAG_SHOW_UI);
+                } else if ("VOL_DOWN".equals(act) || "DOWN".equals(act) || "VOLUME_DOWN".equals(act)) {
+                    am.adjustSuggestedStreamVolume(android.media.AudioManager.ADJUST_LOWER,
+                        android.media.AudioManager.USE_DEFAULT_STREAM_TYPE,
+                        android.media.AudioManager.FLAG_SHOW_UI);
+                } else if ("MUTE".equals(act) || "VOLUME_MUTE".equals(act)) {
+                    am.adjustSuggestedStreamVolume(android.media.AudioManager.ADJUST_TOGGLE_MUTE,
+                        android.media.AudioManager.USE_DEFAULT_STREAM_TYPE,
+                        android.media.AudioManager.FLAG_SHOW_UI);
+                }
+            }
+        });
+        return true;
+    }
+
     private static int keyCodeFor(String name) {
         if (name == null) return -1;
-        switch (name.trim().toUpperCase(java.util.Locale.ROOT)) {
+        String upper = name.trim().toUpperCase(java.util.Locale.ROOT);
+        switch (upper) {
             case "UP": return KeyEvent.KEYCODE_DPAD_UP;
             case "DOWN": return KeyEvent.KEYCODE_DPAD_DOWN;
             case "LEFT": return KeyEvent.KEYCODE_DPAD_LEFT;
@@ -764,9 +859,40 @@ public class MainActivity extends Activity implements LiveServer.Host {
             case "MENU": return KeyEvent.KEYCODE_MENU;
             case "HOME": return KeyEvent.KEYCODE_HOME;
             case "POWER": return KeyEvent.KEYCODE_POWER;
+            case "VOL_UP":
+            case "VOLUP":
+            case "VOLUME_UP": return KeyEvent.KEYCODE_VOLUME_UP;
+            case "VOL_DOWN":
+            case "VOLDOWN":
+            case "VOLUME_DOWN": return KeyEvent.KEYCODE_VOLUME_DOWN;
+            case "MUTE":
+            case "VOLUME_MUTE": return KeyEvent.KEYCODE_VOLUME_MUTE;
+            case "PLAY": return KeyEvent.KEYCODE_MEDIA_PLAY;
+            case "PAUSE": return KeyEvent.KEYCODE_MEDIA_PAUSE;
+            case "PLAY_PAUSE": return KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE;
+            case "STOP": return KeyEvent.KEYCODE_MEDIA_STOP;
+            case "NEXT": return KeyEvent.KEYCODE_MEDIA_NEXT;
+            case "PREV": return KeyEvent.KEYCODE_MEDIA_PREVIOUS;
+            case "REWIND": return KeyEvent.KEYCODE_MEDIA_REWIND;
+            case "FAST_FORWARD": return KeyEvent.KEYCODE_MEDIA_FAST_FORWARD;
+            case "PAGE_UP": return KeyEvent.KEYCODE_PAGE_UP;
+            case "PAGE_DOWN": return KeyEvent.KEYCODE_PAGE_DOWN;
+            case "INFO": return KeyEvent.KEYCODE_INFO;
+            case "SEARCH": return KeyEvent.KEYCODE_SEARCH;
+            case "SPACE": return KeyEvent.KEYCODE_SPACE;
+            case "BACKSPACE":
+            case "DEL": return KeyEvent.KEYCODE_DEL;
+            case "TAB": return KeyEvent.KEYCODE_TAB;
+            case "ESCAPE":
+            case "ESC": return KeyEvent.KEYCODE_ESCAPE;
             default:
+                if (upper.length() == 1) {
+                    char c = upper.charAt(0);
+                    if (c >= 'A' && c <= 'Z') return KeyEvent.KEYCODE_A + (c - 'A');
+                    if (c >= '0' && c <= '9') return KeyEvent.KEYCODE_0 + (c - '0');
+                }
                 try {
-                    int n = Integer.parseInt(name.trim());
+                    int n = Integer.parseInt(upper);
                     if (n >= 0 && n <= 9) return KeyEvent.KEYCODE_0 + n;
                 } catch (Exception ignored) {}
                 return -1;

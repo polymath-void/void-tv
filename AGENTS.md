@@ -38,13 +38,19 @@ Drive and inspect the app through `:4444` instead — `GET /state` returns the c
 
 ## Port 4444
 
-`LiveServer` is a blocking HTTP server with no WebSocket and no authentication, contrary to `README.md` and `docs/`. Endpoints:
+`LiveServer` is a lightweight HTTP server on port 4444 hosting both the agent control plane and an installable **Progressive Web App (PWA) TV Remote Controller** at `/`. Endpoints:
 
+- `GET /` → PWA Remote Controller single-page application
+- `GET /manifest.webmanifest`, `/sw.js`, `/remote.css`, `/remote.js`, `/icon-*.png`, `/icon.svg` → PWA assets
 - `GET /ping` → `PONG`
-- `GET /state` → JSON (`mode`, `focus`, `items[]`, or `url`/`pretty`/`canGo[Back|Forward]`/`dialog` in browser mode). In `CUSTOMIZER` mode `focus` is the overlay's own cursor and `tab` is the open tab; row controls report labels like `INPUT SOURCES · up`.
+- `GET /state` → JSON (`mode`, `focus`, `items[]`, or `url`/`pretty`/`canGo[Back|Forward]`/`dialog` in browser mode).
+- `GET /apps` → JSON array of installed apps with base64 icons, labels, and package names
 - `GET /inputs` → JSON array of hardware and passthrough inputs detected by `TvInputManager` (`id`, `label`, `typeName`, `isPassthrough`).
-- `GET /input?id=<HDMI1|HDMI2|AV|select>` → launches the official TV input selector `com.apps.livetv/.SelectInputActivity` via `com.android.tv.action.VIEW_INPUTS` with auto-selection. Direct `TvContract.buildChannelUriForPassthroughInput` is not used because Moka/Realtek firmware leaves the hardware pipeline uninitialized.
-- `/key?k=RIGHT` → dispatches a real KeyEvent through the focused window (works in the address-bar dialog too)
+- `GET /input?id=<HDMI1|HDMI2|AV|select>` → launches the official TV input selector
+- `/key?k=RIGHT` → dispatches a real KeyEvent through the focused window (supports `UP`, `DOWN`, `LEFT`, `RIGHT`, `SELECT`, `BACK`, `MENU`, `HOME`, `POWER`, `VOL_UP`, `VOL_DOWN`, `MUTE`, `PLAY_PAUSE`, `A-Z`, `0-9`, `SPACE`, `BACKSPACE`, `ENTER`)
+- `/text?t=<text>` → injects text string or URL into search dialog or browser
+- `/mouse?dx=<dx>&dy=<dy>&click=<true|false>` → moves browser cursor and clicks
+- `/volume?v=<VOL_UP|VOL_DOWN|MUTE>` → adjusts TV system volume
 - `/tap?label=Netflix`, `/launch?pkg=...`, `/open?url=...` → JSON result
 - `POST /eval` → fire-and-forget JS in the launcher WebView
 
