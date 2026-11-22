@@ -4,6 +4,14 @@ set -e
 TV_IP="${TV_IP:-192.168.0.114}"
 PORT="${PORT:-4444}"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOKEN="${VOID_TOKEN:-}"
+
+if [ -z "$TOKEN" ] && [ -f "$DIR/token" ]; then
+  TOKEN="$(cat "$DIR/token")"
+fi
+if [ -z "$TOKEN" ]; then
+  TOKEN="$(adb -s "${TV_IP}:5555" shell cat /sdcard/voidtv/token 2>/dev/null || true)"
+fi
 
 CMD="$1"
 shift || true
@@ -19,6 +27,7 @@ case "$CMD" in
     echo "Evaluating JS on TV: $CODE"
     curl -s -X POST "http://${TV_IP}:${PORT}/eval" \
       -H "Content-Type: text/plain" \
+      -H "X-Void-Token: ${TOKEN}" \
       -d "$CODE"
     echo ""
     ;;
@@ -27,6 +36,7 @@ case "$CMD" in
     echo "Setting accent color to $HEX..."
     curl -s -X POST "http://${TV_IP}:${PORT}/eval" \
       -H "Content-Type: text/plain" \
+      -H "X-Void-Token: ${TOKEN}" \
       -d "document.documentElement.style.setProperty('--accent', '$HEX'); document.documentElement.style.setProperty('--accent-glow', '${HEX}66');"
     echo "✓ Color applied live."
     ;;

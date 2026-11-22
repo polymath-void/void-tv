@@ -164,6 +164,7 @@ All endpoints are accessible over standard HTTP on port `4444`. Responses includ
 
 ## 5. Security & Network Considerations
 
-- **Local Wi-Fi Only**: The server listens on `0.0.0.0:4444`. It is designed for private local networks and is not exposed to the public internet.
-- **HTTP vs HTTPS**: The server uses plain `HTTP`. When accessing from mobile browsers, always prefix `http://` (e.g. `http://192.168.0.114:4444`), as modern browsers default to `https://` which will fail with SSL errors.
-- **Zero Background Overhead**: `LiveServer.java` uses lightweight blocking sockets in standard Java. CPU usage is 0% when idle and RAM overhead is negligible (< 100 KB).
+- **Cross-Origin Drive-By Protection**: The in-app browser (`browserWebView`) can navigate untrusted external websites. To prevent a malicious website from issuing cross-origin `fetch()` calls to `127.0.0.1:4444` and executing code, `LiveServer.java` inspects the `Origin` header. Requests with untrusted external web origins are rejected with `403 Forbidden`.
+- **Token Authorization (`/eval`)**: Arbitrary JavaScript execution via `POST /eval` requires an authorization token (`X-Void-Token: <token>` header or `?token=<token>`). The token is auto-generated and stored in `SharedPreferences` and `/sdcard/voidtv/token`, where `live-push.sh` reads it. Unauthenticated `/eval` requests return `401 Unauthorized`.
+- **Local Wi-Fi Only**: The server listens on `0.0.0.0:4444` for local LAN access. It is not exposed to the public internet.
+- **HTTP Cleartext Traffic**: Android TV 14 (`targetSdkVersion 34`) requires `android:usesCleartextTraffic="true"` in `AndroidManifest.xml` for `browserWebView` to navigate `http://` sites and access the local server.

@@ -12,6 +12,9 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class LiveServer {
     /** Bridge the HTTP endpoints need from the Activity. */
@@ -33,14 +36,22 @@ public class LiveServer {
     private final WebView webView;
     private final Context context;
     private final Host host;
+    private final String controlToken;
+    private final ExecutorService executor;
     private ServerSocket serverSocket;
     private boolean running = false;
 
-    public LiveServer(int port, WebView webView, Context context, Host host) {
+    public LiveServer(int port, WebView webView, Context context, Host host, String controlToken) {
         this.port = port;
         this.webView = webView;
         this.context = context;
         this.host = host;
+        this.controlToken = controlToken;
+        this.executor = Executors.newFixedThreadPool(8, r -> {
+            Thread t = new Thread(r, "LiveServer-Worker");
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     public void start() {
@@ -50,10 +61,10 @@ public class LiveServer {
                 serverSocket = new ServerSocket(port);
                 while (running) {
                     Socket client = serverSocket.accept();
-                    handleClient(client);
+                    executor.execute(() -> handleClient(client));
                 }
             } catch (Exception ignored) {}
-        }).start();
+        }, "LiveServer-Acceptor").start();
     }
 
     public void stop() {
@@ -61,48 +72,78 @@ public class LiveServer {
         try {
             if (serverSocket != null) serverSocket.close();
         } catch (Exception ignored) {}
+        executor.shutdownNow();
     }
 
     private void handleClient(Socket client) {
-        new Thread(() -> {
-            try {
-                client.setSoTimeout(5000);
-                BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream(), StandardCharsets.UTF_8));
-                String requestLine = reader.readLine();
-                if (requestLine == null) {
-                    client.close();
-                    return;
-                }
-
-                int contentLength = 0;
-                String header;
-                while ((header = reader.readLine()) != null && !header.isEmpty()) {
-                    if (header.toLowerCase().startsWith("content-length:")) {
-                        contentLength = Integer.parseInt(header.substring(15).trim());
-                    }
-                }
-
-                String body = "";
-                if (contentLength > 0) {
-                    char[] buf = new char[contentLength];
-                    int read = 0;
-                    while (read < contentLength) {
-                        int r = reader.read(buf, read, contentLength - read);
-                        if (r == -1) break;
-                        read += r;
-                    }
-                    body = new String(buf, 0, read);
-                }
-
-                route(client, requestLine, body);
+        try {
+            client.setSoTimeout(5000);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream(), StandardCharsets.UTF_8));
+            String requestLine = reader.readLine();
+            if (requestLine == null) {
                 client.close();
-            } catch (Exception ignored) {
-                try { client.close(); } catch (Exception ignored2) {}
+                return;
             }
-        }).start();
+
+            int contentLength = 0;
+            String origin = null;
+            String authHeader = null;
+            String header;
+            while ((header = reader.readLine()) != null && !header.isEmpty()) {
+                String lower = header.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("content-length:")) {
+                    try {
+                        contentLength = Integer.parseInt(header.substring(15).trim());
+                    } catch (Exception ignored) {}
+                } else if (lower.startsWith("origin:")) {
+                    origin = header.substring(7).trim();
+                } else if (lower.startsWith("x-void-token:")) {
+                    authHeader = header.substring(13).trim();
+                } else if (lower.startsWith("authorization:")) {
+                    String val = header.substring(14).trim();
+                    if (val.toLowerCase(Locale.ROOT).startsWith("bearer ")) {
+                        authHeader = val.substring(7).trim();
+                    }
+                }
+            }
+
+            String body = "";
+            if (contentLength > 0) {
+                char[] buf = new char[contentLength];
+                int read = 0;
+                while (read < contentLength) {
+                    int r = reader.read(buf, read, contentLength - read);
+                    if (r == -1) break;
+                    read += r;
+                }
+                body = new String(buf, 0, read);
+            }
+
+            route(client, requestLine, body, origin, authHeader);
+        } catch (Exception ignored) {
+        } finally {
+            try { client.close(); } catch (Exception ignored) {}
+        }
     }
 
-    private void route(Socket client, String requestLine, String body) throws Exception {
+    private boolean isUntrustedOrigin(String origin) {
+        if (origin == null || origin.isEmpty() || "null".equals(origin)) {
+            return false;
+        }
+        String lower = origin.toLowerCase(Locale.ROOT);
+        // Allow localhost and 127.0.0.1
+        if (lower.startsWith("http://127.0.0.1") || lower.startsWith("http://localhost")) {
+            return false;
+        }
+        // Allow same-origin access on our port
+        if (lower.contains(":" + port)) {
+            return false;
+        }
+        // External public websites attempting drive-by requests
+        return true;
+    }
+
+    private void route(Socket client, String requestLine, String body, String origin, String authHeader) throws Exception {
         String[] parts = requestLine.split(" ");
         String method = parts.length > 0 ? parts[0] : "GET";
         String target = parts.length > 1 ? parts[1] : "/";
@@ -132,6 +173,12 @@ public class LiveServer {
             cleanPath = cleanPath.substring(7);
         }
         if (!cleanPath.isEmpty() && serveAsset(client, "remote/" + cleanPath, getMimeType(cleanPath), false)) {
+            return;
+        }
+
+        // Cross-Origin Protection: block untrusted external web pages from accessing control endpoints
+        if (isUntrustedOrigin(origin)) {
+            reply(client, 403, "application/json", "{\"error\":\"Cross-origin request rejected from " + escape(origin) + "\"}");
             return;
         }
 
@@ -202,7 +249,15 @@ public class LiveServer {
                 reply(client, ok ? 200 : 400, "application/json", "{\"ok\":" + ok + ",\"input\":\"" + escape(in) + "\"}");
                 return;
             }
-            case "/eval":
+            case "/eval": {
+                String token = param(query, "token", null);
+                if (token.isEmpty() && authHeader != null) {
+                    token = authHeader;
+                }
+                if (controlToken != null && !controlToken.isEmpty() && !controlToken.equals(token)) {
+                    reply(client, 401, "application/json", "{\"error\":\"Unauthorized: invalid or missing control token\"}");
+                    return;
+                }
                 if ("POST".equals(method)) {
                     final String js = body;
                     webView.post(() -> webView.evaluateJavascript(js, null));
@@ -211,6 +266,7 @@ public class LiveServer {
                     reply(client, 405, "text/plain", "POST only");
                 }
                 return;
+            }
             default:
                 reply(client, 404, "text/plain", "not found");
         }
@@ -234,6 +290,7 @@ public class LiveServer {
                 + (isServiceWorker ? "Service-Worker-Allowed: /\r\n" : "")
                 + "Cache-Control: " + (isServiceWorker ? "no-cache" : "public, max-age=3600") + "\r\n"
                 + "Access-Control-Allow-Origin: *\r\n"
+                + "Access-Control-Allow-Headers: Content-Type, X-Void-Token, Authorization\r\n"
                 + "Connection: close\r\n\r\n";
             OutputStream out = client.getOutputStream();
             out.write(head.getBytes(StandardCharsets.UTF_8));
@@ -277,22 +334,40 @@ public class LiveServer {
                 }
             }
         }
-        return body == null ? "" : body.trim();
+        if (body == null) return "";
+        String trimmed = body.trim();
+        if (trimmed.startsWith(name + "=")) {
+            int eq = trimmed.indexOf('=');
+            String v = trimmed.substring(eq + 1);
+            int amp = v.indexOf('&');
+            if (amp >= 0) v = v.substring(0, amp);
+            try {
+                return URLDecoder.decode(v, "UTF-8");
+            } catch (Exception e) {
+                return v;
+            }
+        }
+        return trimmed;
     }
 
     private static String escape(String s) {
         if (s == null) return "";
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+        return s.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n")
+                .replace("\t", "\\t");
     }
 
     private static void reply(Socket client, int code, String type, String body) throws Exception {
         if (body == null) body = "";
         byte[] payload = body.getBytes(StandardCharsets.UTF_8);
-        String status = code == 200 ? "200 OK" : code == 404 ? "404 Not Found" : code == 405 ? "405 Method Not Allowed" : "400 Bad Request";
+        String status = code == 200 ? "200 OK" : code == 401 ? "401 Unauthorized" : code == 403 ? "403 Forbidden" : code == 404 ? "404 Not Found" : code == 405 ? "405 Method Not Allowed" : "400 Bad Request";
         String head = "HTTP/1.1 " + status + "\r\n"
             + "Content-Type: " + type + "\r\n"
             + "Content-Length: " + payload.length + "\r\n"
             + "Access-Control-Allow-Origin: *\r\n"
+            + "Access-Control-Allow-Headers: Content-Type, X-Void-Token, Authorization\r\n"
             + "Connection: close\r\n\r\n";
         OutputStream out = client.getOutputStream();
         out.write(head.getBytes(StandardCharsets.UTF_8));

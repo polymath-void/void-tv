@@ -98,8 +98,22 @@ public class MainActivity extends Activity implements LiveServer.Host {
 
         setContentView(rootLayout);
 
+        // Initialize or retrieve control auth token
+        SharedPreferences tokenPrefs = getSharedPreferences("voidtv_prefs", MODE_PRIVATE);
+        String token = tokenPrefs.getString("control_token", null);
+        if (token == null || token.isEmpty()) {
+            token = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+            tokenPrefs.edit().putString("control_token", token).apply();
+        }
+        try {
+            File tokenFile = new File(configDir, "token");
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(tokenFile);
+            fos.write(token.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            fos.close();
+        } catch (Exception ignored) {}
+
         // Start live coding REPL server on 0.0.0.0:4444
-        liveServer = new LiveServer(4444, launcherWebView, this, this);
+        liveServer = new LiveServer(4444, launcherWebView, this, this, token);
         liveServer.start();
 
         // Watch /sdcard/voidtv for hot-reloading
@@ -1131,14 +1145,6 @@ public class MainActivity extends Activity implements LiveServer.Host {
             return true;
         }
         return false;
-    }
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (handleLauncherKeyDown(keyCode, event)) {
-            return true;
-        }
-        return super.onKeyDown(keyCode, event);
     }
 
     @Override

@@ -99,17 +99,17 @@ To replace the 165MB bloated stock launcher, VoidTV is built on a sovereign, dec
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Performance & Footprint Goals vs Reality
+### As-Built Architectural Properties
 
-| Metric | Stock `tvlauncher` | VoidTV Target | Production Measured |
-| --- | --- | --- | --- |
-| **APK Binary Size** | 13.1 MB | < 200 KB | **88 KB (Signed Release APK)** |
-| **RAM Footprint (RSS)** | 164.8 MB | < 15.0 MB | **~12.4 MB (92% reduction)** |
-| **Cold Startup Time** | ~1,850 ms | < 80 ms | **< 65 ms (28x faster)** |
-| **Telemetry & Trackers** | 8 trackers (BigQuery, Primes, FCM) | 0 (Zero) | **0 (100% Sovereign)** |
-| **Monetization / Ad Rows** | 5 persistent carousels | 0 | **0 (Zero Ads)** |
-| **Remote Control Dependency** | Physical IR/Bluetooth remote only | Phone/Web/API | **In-built PWA Remote (Zero ADB)** |
-| **Customization Cycle** | Recompile APK or restricted menus | Hot-reload | **Instant Hot-Reload (< 16ms)** |
+| Property | Stock `tvlauncher` | VoidTV (As-Built) |
+| --- | --- | --- |
+| **APK Binary Size** | 13.1 MB | **88 KB (Signed Release APK on disk)** |
+| **View Architecture** | 40 Activities, complex XML fragments | **1 Activity (`MainActivity.java`), programmatic views, 2 WebViews** |
+| **Build System** | Heavy Gradle / internal Google build | **Pure Android SDK build-tools (`aapt2`, `javac`, `d8`, `zipalign`, `apksigner`)** |
+| **Telemetry & Trackers** | 8 trackers (BigQuery, Primes, FCM) | **0 (Zero background services, receivers, or trackers)** |
+| **Monetization / Ad Rows** | 5 persistent carousels, billing client | **0 (Pure Leanback app launcher and system tools)** |
+| **Remote Control Surface** | Physical remote only | **In-built PWA Remote on port 4444 with mobile keyboard and touchpad** |
+| **Control Security** | N/A | **Origin-checked REST API + `X-Void-Token` for `/eval` to prevent drive-by attacks** |
 
 ---
 

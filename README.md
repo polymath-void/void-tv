@@ -11,11 +11,11 @@ VoidTV replaces the 165MB bloated Google Android TV Home launcher with an ultra-
 
 Built specifically for power users, developers, and edge systems engineers who want instant response, custom categorizations, hardware HDMI switching, in-app file/browser overlays, and real-time live coding without APK reinstallation.
 
-### Key Metrics
-- **Ultra-Low Memory Footprint**: Runs in < 15MB RAM RSS (a 91% reduction from Google TV launcher's 165MB).
-- **Instant Boot**: Cold start in < 80ms, hot resume in < 5ms.
-- **Zero Telemetry**: No BigQuery payloads, no Google Primes, no Google Play Billing, no Firebase promotional push listeners.
-- **Microscopic Binary**: ~60 KB signed release APK built via pure `aapt2` + `javac` + `d8` pipeline (no Gradle overhead).
+### Key Architectural Properties
+- **Programmatic View Hierarchy**: Zero XML layouts. Single Activity (`MainActivity.java`), one launcher WebView, one overlay browser WebView, and a virtual cursor layer constructed entirely in code.
+- **Zero Telemetry**: No BigQuery payloads, no Google Primes, no Google Play Billing, no Firebase marketing daemons.
+- **Microscopic Binary**: 88 KB signed release APK built via pure user-space Android SDK tools (`aapt2` + `javac` + `d8` + `zipalign` + `apksigner`), with zero Gradle overhead.
+- **Origin-Guarded Control Plane**: In-process HTTP daemon with origin verification and token authorization (`X-Void-Token`) preventing drive-by escapes from browsed sites.
 
 ---
 
