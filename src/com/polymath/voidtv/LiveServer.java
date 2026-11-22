@@ -334,7 +334,9 @@ public class LiveServer {
                 + "Content-Type: " + contentType + "\r\n"
                 + "Content-Length: " + payload.length + "\r\n"
                 + (isServiceWorker ? "Service-Worker-Allowed: /\r\n" : "")
-                + "Cache-Control: " + (isServiceWorker ? "no-cache" : "public, max-age=3600") + "\r\n"
+                + "Cache-Control: no-cache, no-store, must-revalidate\r\n"
+                + "Pragma: no-cache\r\n"
+                + "Expires: 0\r\n"
                 + "Access-Control-Allow-Origin: *\r\n"
                 + "Access-Control-Allow-Headers: Content-Type, X-Void-Token, Authorization\r\n"
                 + "Connection: " + (keep ? "keep-alive" : "close") + "\r\n\r\n";
