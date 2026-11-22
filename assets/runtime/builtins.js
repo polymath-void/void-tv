@@ -60,6 +60,20 @@
   });
 
   register({
+    id: 'remote-qr',
+    label: 'Remote QR',
+    icon: '📱',
+    order: 25,
+    run: () => {
+      if (window.RemoteQROverlay) {
+        window.RemoteQROverlay.open();
+      } else {
+        window.showToast && window.showToast('Remote QR unavailable');
+      }
+    }
+  });
+
+  register({
     id: 'browser',
     label: 'Web Browser',
     icon: '🌐',

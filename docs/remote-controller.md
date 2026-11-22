@@ -86,6 +86,9 @@ Typing on a TV with a directional remote is notoriously slow. VoidTV solves this
 - When browsing the web in the VoidTV in-app browser, the **🖱️ MOUSE** tab transforms your smartphone into a high-sensitivity trackpad.
 - **Relative Deltas**: Dragging sends continuous relative movement (`/mouse?dx=..&dy=..`) with velocity smoothing to control the on-screen virtual cursor.
 - **Tap-to-Click**: A quick tap without drag dispatches an atomic `ACTION_DOWN` + `ACTION_UP` touch event directly at cursor coordinates.
+- **Two-Finger Smooth Scrolling**: Dragging two fingers vertically or horizontally on the touchpad surface sends real-time scroll events to `browserWebView.scrollBy()`.
+- **Double-Tap and Drag to Scroll**: Double-tapping and dragging immediately scrolls the active viewport with acceleration.
+- **Tap-and-Hold Drag Movements**: Holding your finger on the trackpad for > 320ms triggers haptic feedback and enters Drag Mode. Dispatches native `ACTION_DOWN`, follows continuous finger movement with `ACTION_MOVE`, and cleanly releases with `ACTION_UP` when lifted.
 - **Scroll & Navigation Toolbar**: Dedicated scroll up/down buttons, plus quick browser tools: Back, Forward, Home, Reload, Search, and Exit Browser.
 
 ### D. Live TV Apps Grid with Authentic Icons
@@ -153,7 +156,7 @@ All endpoints are accessible over standard HTTP on port `4444`. Responses includ
 | `/input` | `GET` | `id=<HDMI1\|HDMI2\|AV\|select>` | Switches TV input or opens native input selector. |
 | `/key` | `GET` | `k=<KEY>` | Dispatches hardware KeyEvent (`UP`, `DOWN`, `LEFT`, `RIGHT`, `SELECT`, `BACK`, `MENU`, `HOME`, `POWER`, `VOL_UP`, `VOL_DOWN`, `MUTE`, `PLAY_PAUSE`, `A`-`Z`, `0`-`9`, `SPACE`, `BACKSPACE`, `ENTER`, `TAB`). |
 | `/text` | `GET` | `t=<STRING>` | Injects text string or URL into TV search dialog, browser, or active field. |
-| `/mouse` | `GET` | `dx=<FLOAT>&dy=<FLOAT>&click=<BOOL>` | Moves in-app browser cursor by relative deltas and triggers clicks. |
+| `/mouse` | `GET` | `dx=<FLOAT>&dy=<FLOAT>&click=<BOOL>&scroll=<BOOL>&action=<down\|move\|up\|click\|scroll>` | Moves in-app browser cursor, scrolls viewport, or dispatches tap-and-hold drag touch events. |
 | `/volume` | `GET` | `v=<VOL_UP\|VOL_DOWN\|MUTE>` | Directly adjusts TV system volume via `AudioManager`. |
 | `/tap` | `GET` | `label=<LABEL>` | Clicks on-screen card or button by label matching. |
 | `/launch` | `GET` | `pkg=<PACKAGE>` | Launches application directly via `PackageManager`. |

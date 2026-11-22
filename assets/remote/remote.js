@@ -74,8 +74,12 @@
     return await apiGet('/input', { id: inputId });
   }
 
-  async function sendMouse(dx, dy, click) {
-    return await apiGet('/mouse', { dx: Math.round(dx || 0), dy: Math.round(dy || 0), click: click ? 'true' : 'false' });
+  async function sendMouse(dx, dy, click, scroll, action) {
+    const params = { dx: Math.round(dx || 0), dy: Math.round(dy || 0) };
+    if (click) params.click = 'true';
+    if (scroll) params.scroll = 'true';
+    if (action) params.action = action;
+    return await apiGet('/mouse', params);
   }
 
   // --- PWA Registration & Install Banner ---
@@ -223,25 +227,47 @@
       }
     });
 
+    // Handle physical / desktop keyboard navigation keys
     liveCapturer.addEventListener('keydown', (e) => {
-      let key = null;
-      if (e.key === 'Backspace') key = 'BACKSPACE';
-      else if (e.key === 'Enter') key = 'ENTER';
-      else if (e.key === ' ') key = 'SPACE';
-      else if (e.key === 'ArrowUp') key = 'UP';
-      else if (e.key === 'ArrowDown') key = 'DOWN';
-      else if (e.key === 'ArrowLeft') key = 'LEFT';
-      else if (e.key === 'ArrowRight') key = 'RIGHT';
-      else if (e.key.length === 1) {
-        key = e.key.toUpperCase();
-      }
-
-      if (key) {
-        sendKey(key);
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sendKey('ENTER');
+      } else if (e.key === 'Backspace' && e.keyCode !== 229) {
+        sendKey('BACKSPACE');
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        sendKey('UP');
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        sendKey('DOWN');
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        sendKey('LEFT');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        sendKey('RIGHT');
+      } else if (e.key && e.key.length === 1 && e.keyCode !== 229) {
+        sendKey(e.key === ' ' ? 'SPACE' : e.key.toUpperCase());
       }
     });
 
-    liveCapturer.addEventListener('input', () => {
+    // Handle mobile soft keyboard (Android Gboard, iOS virtual keyboard IME)
+    liveCapturer.addEventListener('input', (e) => {
+      const inputType = e.inputType || '';
+      if (inputType === 'deleteContentBackward') {
+        sendKey('BACKSPACE');
+      } else if (inputType === 'insertLineBreak') {
+        sendKey('ENTER');
+      } else if (e.data) {
+        for (const ch of e.data) {
+          sendKey(ch === ' ' ? 'SPACE' : ch.toUpperCase());
+        }
+      } else if (liveCapturer.value) {
+        const val = liveCapturer.value;
+        for (const ch of val) {
+          sendKey(ch === ' ' ? 'SPACE' : ch.toUpperCase());
+        }
+      }
       liveCapturer.value = '';
     });
   }
@@ -254,9 +280,27 @@
   let tpLastY = 0;
   let tpMoved = false;
   let tpLastSend = 0;
+  let tpLastTapTime = 0;
+  let isDoubleTapScroll = false;
+  let isHolding = false;
+  let holdTimer = null;
+  let tpTwoFingerLastY = 0;
+  let tpTwoFingerLastX = 0;
 
   if (touchpadSurface) {
     touchpadSurface.addEventListener('touchstart', (e) => {
+      const now = Date.now();
+      if (e.touches.length === 2) {
+        clearTimeout(holdTimer);
+        if (isHolding) {
+          isHolding = false;
+          sendMouse(0, 0, false, false, 'up');
+        }
+        tpTwoFingerLastY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        tpTwoFingerLastX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        return;
+      }
+
       if (e.touches.length === 1) {
         const t = e.touches[0];
         tpStartX = t.clientX;
@@ -264,10 +308,50 @@
         tpLastX = t.clientX;
         tpLastY = t.clientY;
         tpMoved = false;
+
+        if (now - tpLastTapTime < 320) {
+          isDoubleTapScroll = true;
+          vibrate(20);
+          showToast('Double-tap scroll active');
+        } else {
+          isDoubleTapScroll = false;
+        }
+        tpLastTapTime = now;
+
+        clearTimeout(holdTimer);
+        holdTimer = setTimeout(() => {
+          if (!tpMoved && !isDoubleTapScroll) {
+            isHolding = true;
+            vibrate(35);
+            showToast('Hold active (dragging)');
+            sendMouse(0, 0, false, false, 'down');
+          }
+        }, 320);
       }
-    }, { passive: true });
+    }, { passive: false });
 
     touchpadSurface.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const now = Date.now();
+
+      // 1. Two-finger smooth scrolling
+      if (e.touches.length === 2) {
+        clearTimeout(holdTimer);
+        const currentY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const currentX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const dy = (currentY - tpTwoFingerLastY) * 2.2;
+        const dx = (currentX - tpTwoFingerLastX) * 2.2;
+        tpTwoFingerLastY = currentY;
+        tpTwoFingerLastX = currentX;
+
+        if (now - tpLastSend > 25) {
+          tpLastSend = now;
+          sendMouse(-dx, -dy, false, true, 'scroll');
+        }
+        return;
+      }
+
+      // 2. Single finger movement / double-tap scroll / tap-and-hold drag
       if (e.touches.length === 1) {
         const t = e.touches[0];
         const dx = (t.clientX - tpLastX) * 1.5;
@@ -275,23 +359,44 @@
         tpLastX = t.clientX;
         tpLastY = t.clientY;
 
-        if (Math.abs(t.clientX - tpStartX) > 4 || Math.abs(t.clientY - tpStartY) > 4) {
+        if (Math.abs(t.clientX - tpStartX) > 6 || Math.abs(t.clientY - tpStartY) > 6) {
           tpMoved = true;
+          if (!isHolding && !isDoubleTapScroll) {
+            clearTimeout(holdTimer);
+          }
         }
 
-        const now = Date.now();
-        if (now - tpLastSend > 30) {
+        if (now - tpLastSend > 25) {
           tpLastSend = now;
-          sendMouse(dx, dy, false);
+          if (isDoubleTapScroll) {
+            sendMouse(0, -dy * 2.2, false, true, 'scroll');
+          } else if (isHolding) {
+            sendMouse(dx, dy, false, false, 'move');
+          } else {
+            sendMouse(dx, dy, false, false, 'move');
+          }
         }
       }
-    }, { passive: true });
+    }, { passive: false });
 
     touchpadSurface.addEventListener('touchend', (e) => {
-      if (!tpMoved) {
-        // Tap without movement = Click
+      clearTimeout(holdTimer);
+      if (isHolding) {
+        isHolding = false;
         vibrate(20);
-        sendMouse(0, 0, true);
+        sendMouse(0, 0, false, false, 'up');
+        showToast('Drag released');
+        return;
+      }
+
+      if (isDoubleTapScroll) {
+        isDoubleTapScroll = false;
+        return;
+      }
+
+      if (!tpMoved && e.touches.length === 0) {
+        vibrate(20);
+        sendMouse(0, 0, true, false, 'click');
         showToast('Click');
       }
     });

@@ -7,8 +7,9 @@ disappear when the "tools" row was deleted in the customizer.
 layout.json (data)                builtins.js (shell)
 ├── favorites row                 ├── Edit Favorites
 ├── inputs row                    ├── Launcher Settings
-├── all apps row                  ├── Web Browser
-└── any user rows                 ├── File Manager
+├── all apps row                  ├── Remote QR (QR Code)
+└── any user rows                 ├── Web Browser
+                                  ├── File Manager
                                   ├── Input Sources
                                   ├── TV Settings
         │                         └── Reload Layout

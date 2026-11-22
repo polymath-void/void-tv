@@ -1002,10 +1002,94 @@
   });
 
   // ==========================================================
+  // Remote Controller QR Code Overlay
+  // ==========================================================
+  const RemoteQROverlay = {
+    open: function () {
+      let ip = '127.0.0.1';
+      if (window.Android && window.Android.getLocalIpAddress) {
+        ip = window.Android.getLocalIpAddress() || '127.0.0.1';
+      }
+      const remoteUrl = 'http://' + ip + ':4444/';
+
+      let modal = document.getElementById('remote-qr-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'remote-qr-modal';
+        modal.className = 'remote-qr-modal-backdrop';
+        modal.innerHTML = `
+          <div class="remote-qr-card">
+            <div class="remote-qr-header">
+              <span class="remote-qr-icon">📱</span>
+              <div class="remote-qr-title">VOIDTV REMOTE CONTROLLER</div>
+            </div>
+            <div class="remote-qr-desc">Scan with your smartphone camera to connect instantly</div>
+            <div id="remote-qr-container" class="remote-qr-canvas-box"></div>
+            <div class="remote-qr-url">${remoteUrl}</div>
+            <div class="remote-qr-instructions">
+              No ADB or app install required. Includes full mobile keyboard, D-pad, and trackpad.
+            </div>
+            <button id="remote-qr-close-btn" class="remote-qr-btn focused" data-action="close_remote_qr">✕ CLOSE (BACK / ENTER)</button>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        document.getElementById('remote-qr-close-btn').addEventListener('click', () => {
+          RemoteQROverlay.close();
+        });
+      } else {
+        const urlEl = modal.querySelector('.remote-qr-url');
+        if (urlEl) urlEl.textContent = remoteUrl;
+      }
+
+      const container = document.getElementById('remote-qr-container');
+      if (container) {
+        container.innerHTML = '';
+        if (window.QRCode) {
+          try {
+            new QRCode(container, {
+              text: remoteUrl,
+              width: 220,
+              height: 220,
+              colorDark: "#000000",
+              colorLight: "#FFFFFF",
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          } catch (e) {
+            container.textContent = 'QR Code generation error: ' + e.message;
+          }
+        } else {
+          container.textContent = 'QRCode library loading...';
+        }
+      }
+
+      modal.style.display = 'flex';
+      currentMode = 'REMOTE_QR';
+      const btn = document.getElementById('remote-qr-close-btn');
+      if (btn) btn.focus();
+    },
+
+    close: function () {
+      const modal = document.getElementById('remote-qr-modal');
+      if (modal) modal.style.display = 'none';
+      currentMode = 'LAUNCHER';
+      updateFocus();
+    }
+  };
+  window.RemoteQROverlay = RemoteQROverlay;
+
+  // ==========================================================
   // Global Focus & Remote Navigation Engine
   // ==========================================================
   window.FocusEngine = {
     onKey: function (key) {
+      if (currentMode === 'REMOTE_QR') {
+        if (key === 'BACK' || key === 'SELECT' || key === 'ENTER') {
+          window.RemoteQROverlay.close();
+        }
+        return;
+      }
+
       if (currentMode === 'CUSTOMIZER') {
         window.Customizer.onKey(key);
         return;
@@ -1100,6 +1184,7 @@
   }
 
   function agentRoot() {
+    if (currentMode === 'REMOTE_QR') return document.getElementById('remote-qr-modal');
     if (currentMode === 'CUSTOMIZER') return document.getElementById('customizer-overlay');
     if (currentMode === 'FILE_MANAGER') return document.getElementById('fm-overlay');
     return document.getElementById('tv-container');

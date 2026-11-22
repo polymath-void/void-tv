@@ -67,6 +67,8 @@ public class MainActivity extends Activity implements LiveServer.Host {
     private LiveServer liveServer;
     private FileObserver fileObserver;
     private AlertDialog searchDialog;
+    private EditText searchInput;
+    private boolean isMouseDown = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -454,6 +456,7 @@ public class MainActivity extends Activity implements LiveServer.Host {
         panel.addView(title);
 
         final EditText input = new EditText(this);
+        searchInput = input;
         input.setSingleLine(true);
         input.setTextColor(Color.WHITE);
         input.setTextSize(16);
@@ -516,8 +519,12 @@ public class MainActivity extends Activity implements LiveServer.Host {
         dialog.setOnDismissListener(d -> {
             holder[0] = null;
             if (searchDialog == dialog) searchDialog = null;
+            searchInput = null;
         });
-        dialog.setOnShowListener(d -> buildSuggestions(suggestions, input.getText().toString(), input, holder));
+        dialog.setOnShowListener(d -> {
+            buildSuggestions(suggestions, input.getText().toString(), input, holder);
+            input.requestFocus();
+        });
         dialog.show();
         dialog.getWindow().setLayout(
             (int) (getResources().getDisplayMetrics().widthPixels * 0.92f),
@@ -666,18 +673,107 @@ public class MainActivity extends Activity implements LiveServer.Host {
 
     @Override
     public boolean key(String name) {
-        final int code = keyCodeFor(name);
-        if (code < 0) return false;
+        if (name == null || name.trim().isEmpty()) return false;
+        final String rawKey = name.trim();
+        final int code = keyCodeFor(rawKey);
+
         runOnUiThread(() -> {
-            long now = android.os.SystemClock.uptimeMillis();
-            KeyEvent down = new KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0);
-            KeyEvent up = new KeyEvent(now, now + 20, KeyEvent.ACTION_UP, code, 0);
-            if (searchDialog != null && searchDialog.isShowing()) {
-                searchDialog.dispatchKeyEvent(down);
-                searchDialog.dispatchKeyEvent(up);
-            } else {
-                dispatchKeyEvent(down);
-                dispatchKeyEvent(up);
+            // Case 1: Search / Address Input Dialog is showing
+            if (searchDialog != null && searchDialog.isShowing() && searchInput != null) {
+                if (code == KeyEvent.KEYCODE_DEL || "BACKSPACE".equalsIgnoreCase(rawKey)) {
+                    int start = Math.max(searchInput.getSelectionStart(), 0);
+                    int end = Math.max(searchInput.getSelectionEnd(), 0);
+                    if (start > 0 || end > 0) {
+                        if (start == end && start > 0) {
+                            searchInput.getText().delete(start - 1, start);
+                        } else {
+                            searchInput.getText().delete(Math.min(start, end), Math.max(start, end));
+                        }
+                    }
+                    return;
+                }
+                if (code == KeyEvent.KEYCODE_ENTER || "ENTER".equalsIgnoreCase(rawKey)) {
+                    String val = searchInput.getText().toString().trim();
+                    if (!val.isEmpty()) {
+                        searchDialog.dismiss();
+                        showBrowser(normalizeAddress(val));
+                    }
+                    return;
+                }
+                if (code == KeyEvent.KEYCODE_SPACE || "SPACE".equalsIgnoreCase(rawKey)) {
+                    int start = Math.max(searchInput.getSelectionStart(), 0);
+                    int end = Math.max(searchInput.getSelectionEnd(), 0);
+                    searchInput.getText().replace(Math.min(start, end), Math.max(start, end), " ");
+                    return;
+                }
+                if (code == KeyEvent.KEYCODE_DPAD_DOWN || "DOWN".equalsIgnoreCase(rawKey)) {
+                    View next = searchInput.focusSearch(View.FOCUS_DOWN);
+                    if (next != null) next.requestFocus();
+                    return;
+                }
+                if (code == KeyEvent.KEYCODE_BACK || "BACK".equalsIgnoreCase(rawKey)) {
+                    searchDialog.dismiss();
+                    return;
+                }
+                String charToInsert = null;
+                if (rawKey.length() == 1) {
+                    charToInsert = rawKey;
+                } else if (code >= KeyEvent.KEYCODE_A && code <= KeyEvent.KEYCODE_Z) {
+                    charToInsert = String.valueOf((char) ('a' + (code - KeyEvent.KEYCODE_A)));
+                } else if (code >= KeyEvent.KEYCODE_0 && code <= KeyEvent.KEYCODE_9) {
+                    charToInsert = String.valueOf((char) ('0' + (code - KeyEvent.KEYCODE_0)));
+                }
+                if (charToInsert != null) {
+                    int start = Math.max(searchInput.getSelectionStart(), 0);
+                    int end = Math.max(searchInput.getSelectionEnd(), 0);
+                    searchInput.getText().replace(Math.min(start, end), Math.max(start, end), charToInsert);
+                    return;
+                }
+            }
+
+            // Case 2: In-App Browser on browser_home.html
+            if (browserContainer != null && browserContainer.getVisibility() == View.VISIBLE) {
+                String currentUrl = browserWebView != null ? browserWebView.getUrl() : "";
+                if (currentUrl != null && currentUrl.contains("browser_home.html")) {
+                    if (code == KeyEvent.KEYCODE_ENTER || "ENTER".equalsIgnoreCase(rawKey)) {
+                        browserWebView.evaluateJavascript(
+                            "(function(){ var el = document.getElementById('search-input'); if(el && el.value.trim()){ window.location.href = 'https://duckduckgo.com/?q=' + encodeURIComponent(el.value.trim()); } })()", null);
+                        return;
+                    } else if (code == KeyEvent.KEYCODE_DEL || "BACKSPACE".equalsIgnoreCase(rawKey)) {
+                        browserWebView.evaluateJavascript(
+                            "(function(){ var el = document.getElementById('search-input'); if(el){ el.value = el.value.slice(0, -1); el.focus(); } })()", null);
+                        return;
+                    } else if (code == KeyEvent.KEYCODE_SPACE || "SPACE".equalsIgnoreCase(rawKey)) {
+                        browserWebView.evaluateJavascript(
+                            "(function(){ var el = document.getElementById('search-input'); if(el){ el.value += ' '; el.focus(); } })()", null);
+                        return;
+                    } else if (rawKey.length() == 1 || (code >= KeyEvent.KEYCODE_A && code <= KeyEvent.KEYCODE_Z) || (code >= KeyEvent.KEYCODE_0 && code <= KeyEvent.KEYCODE_9)) {
+                        String c = rawKey.length() == 1 ? rawKey : (code >= KeyEvent.KEYCODE_A ? String.valueOf((char) ('a' + (code - KeyEvent.KEYCODE_A))) : String.valueOf((char) ('0' + (code - KeyEvent.KEYCODE_0))));
+                        String escaped = c.replace("\\", "\\\\").replace("'", "\\'");
+                        browserWebView.evaluateJavascript(
+                            "(function(){ var el = document.getElementById('search-input'); if(el){ el.value += '" + escaped + "'; el.focus(); } })()", null);
+                        return;
+                    }
+                }
+            }
+
+            // Case 3: Standard KeyEvent dispatch
+            if (code >= 0) {
+                long now = SystemClock.uptimeMillis();
+                KeyEvent down = new KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0);
+                KeyEvent up = new KeyEvent(now, now + 20, KeyEvent.ACTION_UP, code, 0);
+                if (searchDialog != null && searchDialog.isShowing()) {
+                    searchDialog.dispatchKeyEvent(down);
+                    searchDialog.dispatchKeyEvent(up);
+                } else if (browserContainer != null && browserContainer.getVisibility() == View.VISIBLE) {
+                    if (browserWebView != null) {
+                        browserWebView.dispatchKeyEvent(down);
+                        browserWebView.dispatchKeyEvent(up);
+                    }
+                } else {
+                    dispatchKeyEvent(down);
+                    dispatchKeyEvent(up);
+                }
             }
         });
         return true;
@@ -783,44 +879,70 @@ public class MainActivity extends Activity implements LiveServer.Host {
         if (text == null || text.isEmpty()) return false;
         runOnUiThread(() -> {
             try {
-                if (searchDialog != null && searchDialog.isShowing()) {
-                    View focus = searchDialog.getCurrentFocus();
-                    if (focus instanceof EditText) {
-                        ((EditText) focus).setText(text);
-                        ((EditText) focus).setSelection(text.length());
-                        return;
-                    }
+                if (searchDialog != null && searchDialog.isShowing() && searchInput != null) {
+                    searchInput.setText(text);
+                    searchInput.setSelection(text.length());
+                    return;
                 }
                 if (browserContainer != null && browserContainer.getVisibility() == View.VISIBLE) {
+                    String currentUrl = browserWebView != null ? browserWebView.getUrl() : "";
+                    if (currentUrl != null && currentUrl.contains("browser_home.html")) {
+                        String escaped = text.replace("\\", "\\\\").replace("'", "\\'");
+                        browserWebView.evaluateJavascript(
+                            "(function(){ var el = document.getElementById('search-input'); if(el){ el.value = '" + escaped + "'; el.focus(); } })()", null);
+                        return;
+                    }
                     showBrowser(normalizeAddress(text));
                     return;
                 }
-                if (text.startsWith("http://") || text.startsWith("https://") || text.contains(".com") || text.contains(".org") || text.contains(".net") || text.contains(".io")) {
-                    showBrowser(normalizeAddress(text));
-                } else {
-                    new Thread(() -> {
-                        try {
-                            Runtime.getRuntime().exec(new String[]{"input", "text", text.replace(" ", "%s")});
-                        } catch (Exception ignored) {}
-                    }).start();
-                }
+                showBrowser(normalizeAddress(text));
             } catch (Exception ignored) {}
         });
         return true;
     }
 
     @Override
-    public boolean mouse(float dx, float dy, boolean click) {
+    public boolean mouse(float dx, float dy, boolean click, boolean scroll, String action) {
         runOnUiThread(() -> {
             if (browserContainer != null && browserContainer.getVisibility() == View.VISIBLE) {
                 int viewW = browserWebView.getWidth() > 0 ? browserWebView.getWidth() : 1280;
                 int viewH = browserWebView.getHeight() > 0 ? browserWebView.getHeight() : 672;
+
+                if (scroll || "scroll".equalsIgnoreCase(action)) {
+                    browserWebView.scrollBy((int) dx, (int) dy);
+                    return;
+                }
+
                 cursorX = Math.max(15f, Math.min(viewW - 15f, cursorX + dx));
                 cursorY = Math.max(15f, Math.min(viewH - 15f, cursorY + dy));
                 setCursorActive(true);
                 updateCursorPosition();
-                if (click) {
-                    long now = SystemClock.uptimeMillis();
+
+                long now = SystemClock.uptimeMillis();
+                if ("down".equalsIgnoreCase(action)) {
+                    isMouseDown = true;
+                    if (cursorView != null) cursorView.setScaleX(0.75f);
+                    MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, cursorX, cursorY, 0);
+                    browserWebView.dispatchTouchEvent(down);
+                    down.recycle();
+                } else if ("move".equalsIgnoreCase(action) && isMouseDown) {
+                    MotionEvent move = MotionEvent.obtain(now, now, MotionEvent.ACTION_MOVE, cursorX, cursorY, 0);
+                    browserWebView.dispatchTouchEvent(move);
+                    move.recycle();
+                } else if ("up".equalsIgnoreCase(action)) {
+                    if (isMouseDown) {
+                        isMouseDown = false;
+                        if (cursorView != null) cursorView.setScaleX(1.0f);
+                        MotionEvent up = MotionEvent.obtain(now, now, MotionEvent.ACTION_UP, cursorX, cursorY, 0);
+                        browserWebView.dispatchTouchEvent(up);
+                        up.recycle();
+                    }
+                } else if (click || "click".equalsIgnoreCase(action)) {
+                    if (cursorView != null) {
+                        cursorView.animate().scaleX(0.7f).scaleY(0.7f).setDuration(80)
+                            .withEndAction(() -> cursorView.animate().scaleX(1.0f).scaleY(1.0f).setDuration(80).start())
+                            .start();
+                    }
                     MotionEvent down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, cursorX, cursorY, 0);
                     MotionEvent up = MotionEvent.obtain(now, now + 40, MotionEvent.ACTION_UP, cursorX, cursorY, 0);
                     browserWebView.dispatchTouchEvent(down);

@@ -28,7 +28,7 @@ public class LiveServer {
         String inputs();
         String apps();
         boolean sendText(String text);
-        boolean mouse(float dx, float dy, boolean click);
+        boolean mouse(float dx, float dy, boolean click, boolean scroll, String action);
         boolean volume(String action);
     }
 
@@ -217,7 +217,11 @@ public class LiveServer {
                 float dx = parseFloat(param(query, "dx", body), 0f);
                 float dy = parseFloat(param(query, "dy", body), 0f);
                 boolean click = "true".equalsIgnoreCase(param(query, "click", body));
-                boolean ok = host.mouse(dx, dy, click);
+                boolean scroll = "true".equalsIgnoreCase(param(query, "scroll", body));
+                String action = param(query, "action", body);
+                if (action.isEmpty() && scroll) action = "scroll";
+                if (action.isEmpty() && click) action = "click";
+                boolean ok = host.mouse(dx, dy, click, scroll, action);
                 reply(client, ok ? 200 : 400, "application/json", "{\"ok\":" + ok + "}");
                 return;
             }
