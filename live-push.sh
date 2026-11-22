@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-TV_IP="${TV_IP:-192.168.0.114}"
+TV_IP="${TV_IP:-192.168.0.108}"
 PORT="${PORT:-4444}"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOKEN="${VOID_TOKEN:-}"
