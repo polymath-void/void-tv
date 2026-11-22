@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">VoidTV</string>
+    <string name="accessibility_service_label">VoidTV Remote Service</string>
+    <string name="accessibility_service_description">Enables system-wide remote control navigation, virtual mouse gestures, and real-time soft keyboard input across all Android TV applications.</string>
 </resources>

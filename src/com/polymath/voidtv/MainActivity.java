@@ -64,11 +64,11 @@ public class MainActivity extends Activity implements LiveServer.Host {
     private boolean isCursorActive = true;
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
-    private LiveServer liveServer;
     private FileObserver fileObserver;
     private AlertDialog searchDialog;
     private EditText searchInput;
     private boolean isMouseDown = false;
+    private boolean isResumed = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -114,9 +114,9 @@ public class MainActivity extends Activity implements LiveServer.Host {
             fos.close();
         } catch (Exception ignored) {}
 
-        // Start live coding REPL server on 0.0.0.0:4444
-        liveServer = new LiveServer(4444, launcherWebView, this, this, token);
-        liveServer.start();
+        // Initialize 24/7 VoidControlHub and register foreground launcher
+        VoidControlHub.getInstance().init(getApplicationContext());
+        VoidControlHub.getInstance().registerLauncher(this, launcherWebView);
 
         // Watch /sdcard/voidtv for hot-reloading
         try {
@@ -1270,9 +1270,33 @@ public class MainActivity extends Activity implements LiveServer.Host {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        isResumed = true;
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        isResumed = false;
+    }
+
+    public boolean isForeground() {
+        return isResumed;
+    }
+
+    public boolean isBrowserShowing() {
+        return browserContainer != null && browserContainer.getVisibility() == View.VISIBLE;
+    }
+
+    public WebView getLauncherWebView() {
+        return launcherWebView;
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (liveServer != null) liveServer.stop();
+        VoidControlHub.getInstance().unregisterLauncher(this);
         if (fileObserver != null) fileObserver.stopWatching();
     }
 }

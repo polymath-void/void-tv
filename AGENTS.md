@@ -1,13 +1,13 @@
 # AGENTS.md
 
-WebView-based Android TV home launcher for a single physical TV at `192.168.0.114:5555`. Native code is three Java files in `src/com/polymath/voidtv/`; the entire UI is `assets/runtime/`. No Gradle, no tests, no CI.
+WebView-based Android TV home launcher for a single physical TV at `192.168.0.108:5555`. Native code is five Java files in `src/com/polymath/voidtv/` (`MainActivity.java`, `LiveServer.java`, `TvBridge.java`, `VoidAccessibilityService.java`, `VoidControlHub.java`); the entire UI is `assets/runtime/`. No Gradle, no tests, no CI.
 
 ## Commands
 
 ```bash
 ./build.sh                                        # aapt2 -> javac -> d8 -> zipalign -> apksigner
-adb connect 192.168.0.114:5555
-adb -s 192.168.0.114:5555 install -r voidtv-release.apk
+adb connect 192.168.0.108:5555
+adb -s 192.168.0.108:5555 install -r voidtv-release.apk
 ./live-push.sh {layout|state|key <name>|tap <label>|open <url>|eval <js>|color <#hex>|launch <pkg>|ping}
 ```
 
@@ -23,12 +23,15 @@ Only `/sdcard/voidtv/layout.json`, through a `FileObserver` that calls `window.H
 
 `assets/runtime/layout.json` is a seed file, not the runtime config. The app reads `/sdcard/voidtv/layout.json`, then WebView `localStorage`. Editing the bundled copy changes nothing on the TV, and `./live-push.sh layout` overwrites whatever was configured on the device.
 
-## Remote input
+## Remote input & System-Wide Control
 
-- `MainActivity.dispatchKeyEvent` intercepts DPAD (UP/DOWN/LEFT/RIGHT), SELECT/ENTER, BACK, MENU, and `0`–`9` on both `ACTION_DOWN` and `ACTION_UP`. It consumes them (`return true`) and forwards them into JS as `window.FocusEngine.onKey(...)`.
+- `VoidControlHub` coordinates between `MainActivity` and `VoidAccessibilityService`.
+  - When `MainActivity` is in the foreground: `MainActivity.dispatchKeyEvent` intercepts DPAD (UP/DOWN/LEFT/RIGHT), SELECT/ENTER, BACK, MENU, and `0`–`9` on both `ACTION_DOWN` and `ACTION_UP`. It consumes them (`return true`) and forwards them into JS as `window.FocusEngine.onKey(...)`.
+  - When a third-party app is in the foreground (e.g. YouTube TV, Netflix, Settings): `VoidControlHub` routes requests to `VoidAccessibilityService`. It dispatches framework global actions (`GLOBAL_ACTION_HOME`, `GLOBAL_ACTION_BACK`, `GLOBAL_ACTION_RECENTS`, `GLOBAL_ACTION_POWER`), directional D-pad events (`GLOBAL_ACTION_DPAD_*`), focused node text injection (`ACTION_SET_TEXT`), and system-wide virtual mouse pointer with a floating `TYPE_ACCESSIBILITY_OVERLAY` cursor.
 - **Invariant**: Never pass raw D-pad or `DPAD_CENTER` events to `launcherWebView` via `super.dispatchKeyEvent()` in launcher mode; WebView will consume them and fire phantom touch clicks on its internally focused element (e.g. `com.apps.livetv`). Launcher WebView is configured with `setFocusable(false)` and `setFocusableInTouchMode(false)`.
 - `app.js` keydown listener uses `e.preventDefault()` on handled keys.
 - The in-app browser overlay operates via a D-pad virtual cursor overlay (`cursorView`), supporting velocity acceleration, edge auto-scrolling, touch event injection (`ACTION_DOWN` + `ACTION_UP`), and seamless focus transitions to top toolbar buttons.
+- The built-in `Remote QR` dialog verifies accessibility state with `window.Android.isAccessibilityServiceEnabled()` and displays an interactive button to open TV Accessibility Settings directly.
 
 ## Debugging and automation
 

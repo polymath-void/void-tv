@@ -31,13 +31,13 @@ import java.util.Map;
 
 public class TvBridge {
     private final MainActivity activity;
-    private final Map<String, String> iconCache = new HashMap<>();
+    private static final Map<String, String> iconCache = new HashMap<>();
 
     public TvBridge(MainActivity activity) {
         this.activity = activity;
     }
 
-    private String extractIconBase64(PackageManager pm, String packageName, Drawable icon) {
+    private static String extractIconBase64(PackageManager pm, String packageName, Drawable icon) {
         if (iconCache.containsKey(packageName)) {
             return iconCache.get(packageName);
         }
@@ -68,8 +68,27 @@ public class TvBridge {
     }
 
     @JavascriptInterface
+    public boolean isAccessibilityServiceEnabled() {
+        return VoidAccessibilityService.getInstance() != null;
+    }
+
+    @JavascriptInterface
+    public void openAccessibilitySettings() {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(intent);
+        } catch (Exception ignored) {}
+    }
+
+    @JavascriptInterface
     public String getInstalledApps() {
-        PackageManager pm = activity.getPackageManager();
+        return getInstalledAppsJson(activity);
+    }
+
+    public static String getInstalledAppsJson(Context context) {
+        if (context == null) return "[]";
+        PackageManager pm = context.getPackageManager();
         Intent intent = new Intent(Intent.ACTION_MAIN, null);
         intent.addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
@@ -102,14 +121,19 @@ public class TvBridge {
 
     @JavascriptInterface
     public boolean launchApp(String packageName) {
-        PackageManager pm = activity.getPackageManager();
+        return launchApp(activity, packageName);
+    }
+
+    public static boolean launchApp(Context context, String packageName) {
+        if (context == null || packageName == null) return false;
+        PackageManager pm = context.getPackageManager();
         Intent launchIntent = pm.getLeanbackLaunchIntentForPackage(packageName);
         if (launchIntent == null) {
             launchIntent = pm.getLaunchIntentForPackage(packageName);
         }
         if (launchIntent != null) {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            activity.startActivity(launchIntent);
+            context.startActivity(launchIntent);
             return true;
         }
         return false;
@@ -182,7 +206,7 @@ public class TvBridge {
         return array.toString();
     }
 
-    private String formatFileSize(long bytes) {
+    private static String formatFileSize(long bytes) {
         if (bytes < 1024) return bytes + " B";
         int exp = (int) (Math.log(bytes) / Math.log(1024));
         char pre = "KMGTPE".charAt(exp - 1);
@@ -231,9 +255,14 @@ public class TvBridge {
 
     @JavascriptInterface
     public String getTvInputs() {
+        return getTvInputsJson(activity);
+    }
+
+    public static String getTvInputsJson(Context context) {
+        if (context == null) return "[]";
         JSONArray array = new JSONArray();
         try {
-            TvInputManager tim = (TvInputManager) activity.getSystemService(Context.TV_INPUT_SERVICE);
+            TvInputManager tim = (TvInputManager) context.getSystemService(Context.TV_INPUT_SERVICE);
             if (tim != null) {
                 List<TvInputInfo> list = tim.getTvInputList();
                 if (list != null) {
@@ -244,7 +273,7 @@ public class TvBridge {
                             obj.put("id", id);
                             obj.put("type", info.getType());
                             obj.put("isPassthrough", info.isPassthroughInput());
-                            CharSequence cs = info.loadLabel(activity);
+                            CharSequence cs = info.loadLabel(context);
                             String label = cs != null ? cs.toString() : id;
                             obj.put("label", label);
 
@@ -270,38 +299,46 @@ public class TvBridge {
 
     @JavascriptInterface
     public boolean switchInput(String inputKey) {
+        return switchInput(activity, inputKey);
+    }
+
+    public static boolean switchInput(Context context, String inputKey) {
+        if (context == null) return false;
         try {
             Intent intent = new Intent("com.android.tv.action.VIEW_INPUTS");
             intent.setComponent(new android.content.ComponentName("com.apps.livetv", "com.apps.livetv.SelectInputActivity"));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            activity.startActivity(intent);
+            context.startActivity(intent);
 
             final String key = (inputKey != null) ? inputKey.trim().toUpperCase(java.util.Locale.ROOT) : "";
-            if (key.contains("HDMI1") || key.equals("HDMI 1")) {
-                activity.getWindow().getDecorView().postDelayed(() -> {
-                    try {
-                        Runtime.getRuntime().exec("input tap 132 255");
-                    } catch (Exception ignored) {}
-                }, 450);
-            } else if (key.contains("HDMI2") || key.equals("HDMI 2")) {
-                activity.getWindow().getDecorView().postDelayed(() -> {
-                    try {
-                        Runtime.getRuntime().exec("input tap 132 328");
-                    } catch (Exception ignored) {}
-                }, 450);
-            } else if (key.contains("AV") || key.contains("COMPOSITE")) {
-                activity.getWindow().getDecorView().postDelayed(() -> {
-                    try {
-                        Runtime.getRuntime().exec("input tap 132 401");
-                    } catch (Exception ignored) {}
-                }, 450);
+            if (context instanceof MainActivity) {
+                MainActivity act = (MainActivity) context;
+                if (key.contains("HDMI1") || key.equals("HDMI 1")) {
+                    act.getWindow().getDecorView().postDelayed(() -> {
+                        try {
+                            Runtime.getRuntime().exec("input tap 132 255");
+                        } catch (Exception ignored) {}
+                    }, 450);
+                } else if (key.contains("HDMI2") || key.equals("HDMI 2")) {
+                    act.getWindow().getDecorView().postDelayed(() -> {
+                        try {
+                            Runtime.getRuntime().exec("input tap 132 328");
+                        } catch (Exception ignored) {}
+                    }, 450);
+                } else if (key.contains("AV") || key.contains("COMPOSITE")) {
+                    act.getWindow().getDecorView().postDelayed(() -> {
+                        try {
+                            Runtime.getRuntime().exec("input tap 132 401");
+                        } catch (Exception ignored) {}
+                    }, 450);
+                }
             }
             return true;
         } catch (Exception e) {
             try {
                 Intent fallback = new Intent("com.android.tv.action.VIEW_INPUTS");
                 fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                activity.startActivity(fallback);
+                context.startActivity(fallback);
                 return true;
             } catch (Exception ignored) {
                 return false;

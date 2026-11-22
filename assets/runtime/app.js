@@ -1012,6 +1012,7 @@
       }
       const remoteUrl = 'http://' + ip + ':4444/';
 
+      const isA11y = (window.Android && window.Android.isAccessibilityServiceEnabled) ? window.Android.isAccessibilityServiceEnabled() : false;
       let modal = document.getElementById('remote-qr-modal');
       if (!modal) {
         modal = document.createElement('div');
@@ -1026,10 +1027,11 @@
             <div class="remote-qr-desc">Scan with your smartphone camera to connect instantly</div>
             <div id="remote-qr-container" class="remote-qr-canvas-box"></div>
             <div class="remote-qr-url">${remoteUrl}</div>
-            <div class="remote-qr-instructions">
-              No ADB or app install required. Includes full mobile keyboard, D-pad, and trackpad.
+            <div id="remote-qr-status" class="remote-qr-instructions" style="font-weight: 600; margin-top: 4px;"></div>
+            <div id="remote-qr-actions" style="display: flex; flex-direction: column; width: 100%; gap: 8px; margin-top: 10px;">
+              <button id="remote-qr-a11y-btn" class="remote-qr-btn" style="display: none; background: rgba(255, 179, 0, 0.2); border-color: #FFB300; color: #FFD54F;">⚙ ENABLE IN TV SETTINGS</button>
+              <button id="remote-qr-close-btn" class="remote-qr-btn focused" data-action="close_remote_qr">✕ CLOSE (BACK / ENTER)</button>
             </div>
-            <button id="remote-qr-close-btn" class="remote-qr-btn focused" data-action="close_remote_qr">✕ CLOSE (BACK / ENTER)</button>
           </div>
         `;
         document.body.appendChild(modal);
@@ -1037,9 +1039,29 @@
         document.getElementById('remote-qr-close-btn').addEventListener('click', () => {
           RemoteQROverlay.close();
         });
+
+        document.getElementById('remote-qr-a11y-btn').addEventListener('click', () => {
+          if (window.Android && window.Android.openAccessibilitySettings) {
+            window.Android.openAccessibilitySettings();
+          }
+        });
       } else {
         const urlEl = modal.querySelector('.remote-qr-url');
         if (urlEl) urlEl.textContent = remoteUrl;
+      }
+
+      const statusEl = document.getElementById('remote-qr-status');
+      const a11yBtn = document.getElementById('remote-qr-a11y-btn');
+      if (statusEl && a11yBtn) {
+        if (isA11y) {
+          statusEl.textContent = '✓ System-Wide Remote Control: ACTIVE';
+          statusEl.style.color = '#00E5FF';
+          a11yBtn.style.display = 'none';
+        } else {
+          statusEl.textContent = '⚠ System Remote: INACTIVE (Enable in TV Settings for YouTube / Netflix control)';
+          statusEl.style.color = '#FFB300';
+          a11yBtn.style.display = 'block';
+        }
       }
 
       const container = document.getElementById('remote-qr-container');
@@ -1084,8 +1106,29 @@
   window.FocusEngine = {
     onKey: function (key) {
       if (currentMode === 'REMOTE_QR') {
-        if (key === 'BACK' || key === 'SELECT' || key === 'ENTER') {
+        if (key === 'BACK') {
           window.RemoteQROverlay.close();
+          return;
+        }
+        const closeBtn = document.getElementById('remote-qr-close-btn');
+        const a11yBtn = document.getElementById('remote-qr-a11y-btn');
+        if (key === 'UP' || key === 'DOWN') {
+          if (a11yBtn && a11yBtn.style.display !== 'none' && closeBtn) {
+            if (document.activeElement === closeBtn) {
+              a11yBtn.focus();
+            } else {
+              closeBtn.focus();
+            }
+          }
+          return;
+        }
+        if (key === 'SELECT' || key === 'ENTER') {
+          if (document.activeElement && typeof document.activeElement.click === 'function') {
+            document.activeElement.click();
+          } else {
+            window.RemoteQROverlay.close();
+          }
+          return;
         }
         return;
       }

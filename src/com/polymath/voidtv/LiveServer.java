@@ -33,13 +33,17 @@ public class LiveServer {
     }
 
     private final int port;
-    private final WebView webView;
+    private WebView webView;
     private final Context context;
     private final Host host;
     private final String controlToken;
     private final ExecutorService executor;
     private ServerSocket serverSocket;
     private boolean running = false;
+
+    public void setWebView(WebView webView) {
+        this.webView = webView;
+    }
 
     public LiveServer(int port, WebView webView, Context context, Host host, String controlToken) {
         this.port = port;
@@ -264,8 +268,12 @@ public class LiveServer {
                 }
                 if ("POST".equals(method)) {
                     final String js = body;
-                    webView.post(() -> webView.evaluateJavascript(js, null));
-                    reply(client, 200, "text/plain", "OK");
+                    if (webView != null) {
+                        webView.post(() -> webView.evaluateJavascript(js, null));
+                        reply(client, 200, "text/plain", "OK");
+                    } else {
+                        reply(client, 503, "text/plain", "Launcher WebView not available");
+                    }
                 } else {
                     reply(client, 405, "text/plain", "POST only");
                 }

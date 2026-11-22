@@ -505,8 +505,19 @@
         connDot.className = 'pulse-dot';
       }
       if (connText) connText.textContent = 'TV ONLINE';
-      if (tvModeBadge && data.mode) {
-        tvModeBadge.textContent = data.mode;
+      if (tvModeBadge) {
+        if (data.mode === 'APP') {
+          let name = 'APP';
+          if (data.app) {
+            const parts = data.app.split('.');
+            name = parts[parts.length - 1];
+            if (name.length < 3 && parts.length > 1) name = parts[parts.length - 2];
+            name = name.toUpperCase();
+          }
+          tvModeBadge.textContent = 'APP: ' + name;
+        } else if (data.mode) {
+          tvModeBadge.textContent = data.mode;
+        }
       }
     } catch (e) {
       if (connDot) {
