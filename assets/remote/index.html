@@ -32,42 +32,29 @@
 
     <!-- Navigation Tabs -->
     <nav class="nav-tabs">
-      <button class="tab-btn active" data-tab="remote">🎮 REMOTE</button>
-      <button class="tab-btn" data-tab="keyboard">⌨️ KEYS</button>
-      <button class="tab-btn" data-tab="touchpad">🖱️ MOUSE</button>
+      <button class="tab-btn active" data-tab="remote">🎮 REMOTE &amp; MOUSE</button>
       <button class="tab-btn" data-tab="apps">📱 APPS</button>
       <button class="tab-btn" data-tab="inputs">📺 INPUTS</button>
+      <button class="tab-btn" data-tab="numpad">🔢 NUMPAD</button>
+      <button class="tab-btn" data-tab="shield">🛡️ SHIELD</button>
     </nav>
 
     <!-- Main Viewport Area -->
     <main class="panels-container">
-      <!-- 1. D-Pad & Remote Panel -->
+      <!-- 1. Unified D-Pad, Mouse Trackpad & Direct Input Panel -->
       <section class="panel active" id="panel-remote">
-        <!-- Volume & Page Rockers -->
-        <div class="rocker-row">
-          <div class="rocker-group">
-            <button class="rocker-btn" data-key="VOL_DOWN" title="Volume Down">VOL -</button>
-            <button class="rocker-btn" data-key="MUTE" title="Mute Audio">🔇</button>
-            <button class="rocker-btn" data-key="VOL_UP" title="Volume Up">VOL +</button>
-          </div>
-          <div class="rocker-group">
-            <button class="rocker-btn" data-key="PAGE_UP" title="Page Up">PG ▲</button>
-            <button class="rocker-btn" data-key="INFO" title="TV Info">ℹ️</button>
-            <button class="rocker-btn" data-key="PAGE_DOWN" title="Page Down">PG ▼</button>
-          </div>
+        <!-- Direct Search, URL & Keystroke Input Bar -->
+        <div class="unified-input-bar">
+          <input type="text" id="unified-input" class="unified-input" placeholder="🌐 Enter URL or Search TV..." autocomplete="off" autocapitalize="none">
+          <button class="unified-btn go-btn" id="btn-quick-go" title="Open in TV Browser">GO</button>
+          <button class="unified-btn send-btn" id="btn-quick-send" title="Send Keystrokes to TV">⌨ SEND</button>
+          <button class="unified-btn clear-btn" id="btn-quick-clear" title="Clear Input">✕</button>
         </div>
 
-        <!-- Ergonomic D-Pad -->
-        <div class="dpad-wrapper">
-          <div class="dpad-disc">
-            <button class="dpad-btn dpad-up" data-key="UP" aria-label="Up">▲</button>
-            <button class="dpad-btn dpad-left" data-key="LEFT" aria-label="Left">◀</button>
-            <button class="dpad-btn dpad-center" data-key="SELECT" aria-label="OK">
-              <span>OK</span>
-            </button>
-            <button class="dpad-btn dpad-right" data-key="RIGHT" aria-label="Right">▶</button>
-            <button class="dpad-btn dpad-down" data-key="DOWN" aria-label="Down">▼</button>
-          </div>
+        <!-- Touchpad Surface -->
+        <div class="touchpad-surface unified-touchpad" id="touchpad-surface">
+          <div class="touchpad-crosshair"></div>
+          <div class="touchpad-hint">DRAG TO MOVE CURSOR · TAP TO CLICK · 2-FINGER SCROLL</div>
         </div>
 
         <!-- Core TV Nav Keys -->
@@ -75,114 +62,52 @@
           <button class="pill-btn" data-key="BACK">◀ BACK</button>
           <button class="pill-btn primary" data-key="HOME">⌂ HOME</button>
           <button class="pill-btn" data-key="MENU">☰ MENU</button>
+          <button class="pill-btn click-btn" id="tp-btn-click">🖱️ CLICK</button>
         </div>
 
-        <!-- Media Playback Strip -->
-        <div class="media-row">
-          <button class="media-btn" data-key="PREV" title="Previous">⏮</button>
-          <button class="media-btn" data-key="REWIND" title="Rewind">⏪</button>
-          <button class="media-btn play-btn" data-key="PLAY_PAUSE" title="Play/Pause">⏯</button>
-          <button class="media-btn" data-key="FAST_FORWARD" title="Fast Forward">⏩</button>
-          <button class="media-btn" data-key="NEXT" title="Next">⏭</button>
-        </div>
-
-        <!-- Numeric Shortcuts (Foldable) -->
-        <div class="num-keypad">
-          <div class="num-row">
-            <button class="num-btn" data-key="1">1</button>
-            <button class="num-btn" data-key="2">2</button>
-            <button class="num-btn" data-key="3">3</button>
-          </div>
-          <div class="num-row">
-            <button class="num-btn" data-key="4">4</button>
-            <button class="num-btn" data-key="5">5</button>
-            <button class="num-btn" data-key="6">6</button>
-          </div>
-          <div class="num-row">
-            <button class="num-btn" data-key="7">7</button>
-            <button class="num-btn" data-key="8">8</button>
-            <button class="num-btn" data-key="9">9</button>
-          </div>
-          <div class="num-row">
-            <button class="num-btn alt" data-key="SEARCH">🔍</button>
-            <button class="num-btn" data-key="0">0</button>
-            <button class="num-btn alt" data-key="BACKSPACE">⌫</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- 2. Keyboard & Live Typing Panel -->
-      <section class="panel" id="panel-keyboard">
-        <div class="kb-card">
-          <div class="kb-header">
-            <span class="kb-title">TEXT INJECTION &amp; SEARCH</span>
-            <span class="kb-hint">Type on phone to send to TV</span>
-          </div>
-          <div class="kb-input-wrap">
-            <input type="text" id="kb-text-input" class="kb-text-input" placeholder="Enter URL, search query, or text..." autocomplete="off" autocapitalize="none">
-            <button class="kb-clear-btn" id="kb-btn-clear">✕</button>
-          </div>
-          <div class="kb-actions-row">
-            <button class="action-btn primary" id="kb-btn-send">🚀 SEND TO TV</button>
-            <button class="action-btn secondary" id="kb-btn-browser">🌐 OPEN IN BROWSER</button>
-          </div>
-        </div>
-
-        <!-- Live Keystroke Mode -->
-        <div class="kb-card live-typing-card">
-          <div class="live-typing-header">
-            <div>
-              <div class="live-typing-title">REAL-TIME KEYSTROKE MODE</div>
-              <div class="live-typing-desc">Every character typed forwards immediately to the TV</div>
+        <!-- Split Ergonomic Controls: D-Pad on Left, Rockers on Right -->
+        <div class="controls-split-row">
+          <div class="dpad-wrapper compact">
+            <div class="dpad-disc compact">
+              <button class="dpad-btn dpad-up" data-key="UP" aria-label="Up">▲</button>
+              <button class="dpad-btn dpad-left" data-key="LEFT" aria-label="Left">◀</button>
+              <button class="dpad-btn dpad-center" data-key="SELECT" aria-label="OK">
+                <span>OK</span>
+              </button>
+              <button class="dpad-btn dpad-right" data-key="RIGHT" aria-label="Right">▶</button>
+              <button class="dpad-btn dpad-down" data-key="DOWN" aria-label="Down">▼</button>
             </div>
-            <label class="switch">
-              <input type="checkbox" id="kb-toggle-live">
-              <span class="slider"></span>
-            </label>
           </div>
-          <div class="live-input-box" id="live-input-container" style="display: none;">
-            <input type="text" id="live-key-capturer" class="live-key-capturer" placeholder="Tap here to activate phone keyboard..." autocomplete="off">
-            <div class="live-typing-status" id="live-typing-status">Keystroke listener active. Press keys on your phone.</div>
+
+          <div class="side-controls-column">
+            <div class="side-rocker-card">
+              <div class="side-rocker-label">VOLUME</div>
+              <div class="side-rocker-btns">
+                <button class="side-rocker-btn" data-key="VOL_UP" title="Volume Up">▲ VOL+</button>
+                <button class="side-rocker-btn mute" data-key="MUTE" title="Mute">🔇</button>
+                <button class="side-rocker-btn" data-key="VOL_DOWN" title="Volume Down">▼ VOL-</button>
+              </div>
+            </div>
+            <div class="side-rocker-card">
+              <div class="side-rocker-label">PAGE SCROLL</div>
+              <div class="side-rocker-btns">
+                <button class="side-rocker-btn" data-key="PAGE_UP" title="Page Up">▲ PG UP</button>
+                <button class="side-rocker-btn" data-key="PAGE_DOWN" title="Page Down">▼ PG DN</button>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Fast Shortcut Keys Strip -->
-        <div class="quick-keys-grid">
-          <button class="quick-btn" data-key="SPACE">SPACE</button>
-          <button class="quick-btn" data-key="BACKSPACE">BACKSPACE ⌫</button>
-          <button class="quick-btn" data-key="ENTER">ENTER ↵</button>
-          <button class="quick-btn" data-key="TAB">TAB ⇥</button>
-          <button class="quick-btn quick-text" data-text="https://">https://</button>
-          <button class="quick-btn quick-text" data-text=".com">.com</button>
-          <button class="quick-btn quick-text" data-text="youtube">youtube</button>
-          <button class="quick-btn quick-text" data-text="fast.com">fast.com</button>
+        <div class="quick-keys-strip">
+          <button class="strip-key" data-key="SPACE">SPACE</button>
+          <button class="strip-key" data-key="BACKSPACE">⌫ DEL</button>
+          <button class="strip-key primary" data-key="ENTER">ENTER ↵</button>
+          <button class="strip-key shield-btn" id="btn-quick-shield" title="Shield Settings">🛡️ SHIELD</button>
         </div>
       </section>
 
-      <!-- 3. In-App Browser Virtual Touchpad Panel -->
-      <section class="panel" id="panel-touchpad">
-        <div class="touchpad-toolbar">
-          <button class="tp-tool-btn" id="tp-btn-back" title="Back">◀</button>
-          <button class="tp-tool-btn" id="tp-btn-fwd" title="Forward">▶</button>
-          <button class="tp-tool-btn" id="tp-btn-home" title="Browser Home">🏠</button>
-          <button class="tp-tool-btn" id="tp-btn-reload" title="Reload">⟳</button>
-          <button class="tp-tool-btn" id="tp-btn-search" title="Search URL">🔍</button>
-          <button class="tp-tool-btn exit-btn" id="tp-btn-exit" title="Exit Browser">✕ EXIT</button>
-        </div>
-
-        <div class="touchpad-surface" id="touchpad-surface">
-          <div class="touchpad-crosshair"></div>
-          <div class="touchpad-hint">DRAG TO MOVE CURSOR · TAP TO CLICK</div>
-        </div>
-
-        <div class="touchpad-click-bar">
-          <button class="tp-click-btn" id="tp-btn-click">🖱️ CLICK (SELECT)</button>
-          <button class="tp-click-btn secondary" id="tp-btn-scroll-up">▲ SCROLL</button>
-          <button class="tp-click-btn secondary" id="tp-btn-scroll-down">▼ SCROLL</button>
-        </div>
-      </section>
-
-      <!-- 4. Installed TV Apps Panel -->
+      <!-- 2. Installed TV Apps Panel -->
       <section class="panel" id="panel-apps">
         <div class="apps-search-bar">
           <input type="text" id="apps-filter-input" class="apps-filter-input" placeholder="🔍 Search installed TV apps...">
@@ -193,7 +118,7 @@
         </div>
       </section>
 
-      <!-- 5. Hardware TV Inputs Panel -->
+      <!-- 3. Hardware TV Inputs Panel -->
       <section class="panel" id="panel-inputs">
         <div class="inputs-title">HARDWARE &amp; PASSTHROUGH INPUTS</div>
         <div class="inputs-grid" id="inputs-grid">
@@ -217,6 +142,111 @@
             <span class="input-name">Input Menu</span>
             <span class="input-tag">Native TV Panel</span>
           </button>
+        </div>
+      </section>
+
+      <!-- 4. Folded Numpad & Media Panel -->
+      <section class="panel" id="panel-numpad">
+        <!-- Media Playback Strip -->
+        <div class="media-row">
+          <button class="media-btn" data-key="PREV" title="Previous">⏮</button>
+          <button class="media-btn" data-key="REWIND" title="Rewind">⏪</button>
+          <button class="media-btn play-btn" data-key="PLAY_PAUSE" title="Play/Pause">⏯</button>
+          <button class="media-btn" data-key="FAST_FORWARD" title="Fast Forward">⏩</button>
+          <button class="media-btn" data-key="NEXT" title="Next">⏭</button>
+        </div>
+
+        <!-- Numeric Shortcuts -->
+        <div class="num-keypad">
+          <div class="num-row">
+            <button class="num-btn" data-key="1">1</button>
+            <button class="num-btn" data-key="2">2</button>
+            <button class="num-btn" data-key="3">3</button>
+          </div>
+          <div class="num-row">
+            <button class="num-btn" data-key="4">4</button>
+            <button class="num-btn" data-key="5">5</button>
+            <button class="num-btn" data-key="6">6</button>
+          </div>
+          <div class="num-row">
+            <button class="num-btn" data-key="7">7</button>
+            <button class="num-btn" data-key="8">8</button>
+            <button class="num-btn" data-key="9">9</button>
+          </div>
+          <div class="num-row">
+            <button class="num-btn alt" data-key="SEARCH">🔍</button>
+            <button class="num-btn" data-key="0">0</button>
+            <button class="num-btn alt" data-key="BACKSPACE">⌫</button>
+          </div>
+        </div>
+
+        <!-- Fast Shortcut Keys Strip -->
+        <div class="quick-keys-grid">
+          <button class="quick-btn quick-text" data-text="https://">https://</button>
+          <button class="quick-btn quick-text" data-text=".com">.com</button>
+          <button class="quick-btn quick-text" data-text="youtube">youtube</button>
+          <button class="quick-btn quick-text" data-text="fast.com">fast.com</button>
+        </div>
+      </section>
+
+      <!-- 5. VoidShield Browser Security & Settings Panel -->
+      <section class="panel" id="panel-shield">
+        <div class="shield-card">
+          <div class="shield-header">
+            <span class="shield-badge">🛡️ VOIDSHIELD ACTIVE</span>
+            <div class="shield-stats" id="shield-stat-badge">0 BLOCKED</div>
+          </div>
+          <p class="shield-desc">Real-time anti-malware, adblocker, and popup redirect shield for high-performance TV streaming.</p>
+
+          <div class="shield-toggles-list">
+            <div class="shield-toggle-item">
+              <div>
+                <div class="shield-item-title">AD &amp; MALWARE BLOCKER</div>
+                <div class="shield-item-subtitle">Stops ad scripts, miners &amp; telemetry</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="shield-toggle-adblock" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="shield-toggle-item">
+              <div>
+                <div class="shield-item-title">BLOCK POPUPS &amp; REDIRECTS</div>
+                <div class="shield-item-subtitle">Disables window.open &amp; video clickjacks</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="shield-toggle-popups" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="shield-toggle-item">
+              <div>
+                <div class="shield-item-title">DESKTOP USER-AGENT</div>
+                <div class="shield-item-subtitle">Bypasses mobile-only player limits</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="shield-toggle-ua">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="shield-toggle-item">
+              <div>
+                <div class="shield-item-title">ACCEPT COOKIES</div>
+                <div class="shield-item-subtitle">Preserves login sessions &amp; video CDN tokens</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="shield-toggle-cookies" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="shield-actions">
+            <button class="action-btn danger" id="shield-btn-clear">🧹 CLEAR BROWSING DATA</button>
+          </div>
         </div>
       </section>
     </main>

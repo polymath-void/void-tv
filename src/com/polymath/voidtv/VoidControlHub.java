@@ -231,6 +231,41 @@ public class VoidControlHub implements LiveServer.Host {
         return false;
     }
 
+    @Override
+    public String browserConfig() {
+        if (activeLauncher != null) {
+            return activeLauncher.browserConfig();
+        }
+        if (appContext != null) {
+            return new VoidShield(appContext).getStatusJson();
+        }
+        return "{}";
+    }
+
+    @Override
+    public boolean updateBrowserConfig(String adblock, String popups, String ua, String cookies) {
+        if (activeLauncher != null) {
+            return activeLauncher.updateBrowserConfig(adblock, popups, ua, cookies);
+        }
+        if (appContext != null) {
+            VoidShield vs = new VoidShield(appContext);
+            if (adblock != null && !adblock.isEmpty()) vs.setAdBlockEnabled("true".equalsIgnoreCase(adblock) || "1".equals(adblock));
+            if (popups != null && !popups.isEmpty()) vs.setPopupBlockEnabled("true".equalsIgnoreCase(popups) || "1".equals(popups));
+            if (ua != null && !ua.isEmpty()) vs.setDesktopUaEnabled("desktop".equalsIgnoreCase(ua) || "true".equalsIgnoreCase(ua));
+            if (cookies != null && !cookies.isEmpty()) vs.setCookiesEnabled("true".equalsIgnoreCase(cookies) || "1".equals(cookies));
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean clearBrowserData() {
+        if (activeLauncher != null) {
+            return activeLauncher.clearBrowserData();
+        }
+        return true;
+    }
+
     private static String escape(String s) {
         if (s == null) return "";
         return s.replace("\\", "\\\\")

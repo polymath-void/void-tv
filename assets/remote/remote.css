@@ -22,6 +22,7 @@
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: manipulation;
 }
 
 body {
@@ -916,4 +917,316 @@ input:checked + .slider:before {
 .toast.show {
   transform: translateX(-50%) translateY(0);
   opacity: 1;
+}
+
+/* =========================================================================
+   Unified Remote, Mouse Trackpad & Shield Styles
+   ========================================================================= */
+
+.unified-input-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-bright);
+  border-radius: 12px;
+  padding: 4px 6px;
+}
+
+.unified-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 6px 4px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.unified-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 8px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.08s;
+}
+
+.unified-btn:active {
+  transform: scale(0.92);
+}
+
+.unified-btn.go-btn {
+  color: var(--neon-cyan);
+  border-color: rgba(0, 229, 255, 0.4);
+  background: rgba(0, 229, 255, 0.08);
+}
+
+.unified-btn.send-btn {
+  color: var(--neon-amber);
+  border-color: rgba(255, 179, 0, 0.4);
+  background: rgba(255, 179, 0, 0.08);
+}
+
+.unified-btn.clear-btn {
+  color: var(--text-muted);
+  padding: 8px 8px;
+}
+
+.unified-touchpad {
+  min-height: 180px;
+  max-height: 220px;
+  margin: 2px 0;
+  border: 2px solid var(--border-dim);
+  border-radius: 14px;
+  background: radial-gradient(circle, #161828 0%, #0C0D15 100%);
+}
+
+.click-btn {
+  color: var(--neon-cyan);
+  border-color: rgba(0, 229, 255, 0.4);
+}
+
+.controls-split-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0;
+}
+
+.dpad-wrapper.compact {
+  flex: 1.2;
+  padding: 0;
+  justify-content: center;
+}
+
+.dpad-disc.compact {
+  width: 185px;
+  height: 185px;
+}
+
+.dpad-disc.compact .dpad-up {
+  top: 4px;
+  width: 58px;
+  height: 50px;
+}
+
+.dpad-disc.compact .dpad-down {
+  bottom: 4px;
+  width: 58px;
+  height: 50px;
+}
+
+.dpad-disc.compact .dpad-left {
+  left: 4px;
+  width: 50px;
+  height: 58px;
+}
+
+.dpad-disc.compact .dpad-right {
+  right: 4px;
+  width: 50px;
+  height: 58px;
+}
+
+.dpad-disc.compact .dpad-center {
+  width: 70px;
+  height: 70px;
+  font-size: 15px;
+}
+
+.side-controls-column {
+  flex: 0.9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.side-rocker-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-dim);
+  border-radius: 12px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.side-rocker-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+.side-rocker-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.side-rocker-btn {
+  flex: 1;
+  padding: 8px 2px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  color: var(--neon-cyan);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.08s, background-color 0.08s;
+}
+
+.side-rocker-btn:active {
+  transform: scale(0.92);
+  background-color: var(--neon-cyan);
+  color: var(--bg-dark);
+}
+
+.side-rocker-btn.mute {
+  color: var(--neon-red);
+  flex: 0.7;
+}
+
+.quick-keys-strip {
+  display: flex;
+  gap: 6px;
+}
+
+.strip-key {
+  flex: 1;
+  padding: 10px 0;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-dim);
+  border-radius: 10px;
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.08s;
+}
+
+.strip-key:active {
+  transform: scale(0.92);
+  background-color: var(--border-bright);
+}
+
+.strip-key.primary {
+  color: var(--neon-cyan);
+  border-color: rgba(0, 229, 255, 0.4);
+}
+
+.strip-key.shield-btn {
+  color: var(--neon-green);
+  border-color: rgba(0, 230, 118, 0.4);
+}
+
+/* VoidShield Panel Styles */
+.shield-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-bright);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.shield-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.shield-badge {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--neon-green);
+  letter-spacing: 0.5px;
+}
+
+.shield-stats {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--neon-cyan);
+  background-color: rgba(0, 229, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 229, 255, 0.3);
+}
+
+.shield-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.shield-toggles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shield-toggle-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-dim);
+  border-radius: 10px;
+}
+
+.shield-item-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.shield-item-subtitle {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.shield-actions {
+  margin-top: 6px;
+}
+
+.action-btn.danger {
+  width: 100%;
+  padding: 12px;
+  background-color: rgba(255, 51, 102, 0.1);
+  border: 1px solid var(--neon-red);
+  color: var(--neon-red);
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.08s;
+}
+
+.action-btn.danger:active {
+  transform: scale(0.96);
+  background-color: var(--neon-red);
+  color: white;
 }

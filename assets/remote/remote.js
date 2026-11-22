@@ -4,7 +4,7 @@
   // --- Haptics Helper ---
   function vibrate(ms) {
     if (navigator.vibrate) {
-      try { navigator.vibrate(ms || 15); } catch (e) {}
+      try { navigator.vibrate(ms || 12); } catch (e) {}
     }
   }
 
@@ -35,13 +35,46 @@
     }
   }
 
-  async function sendKey(keyName) {
-    vibrate(15);
-    const res = await apiGet('/key', { k: keyName });
-    if (!res.ok) {
-      // fallback or error
+  // Fast, fire-and-forget request with HTTP Keep-Alive for near-zero latency
+  function apiFastGet(endpoint, params) {
+    const url = new URL(endpoint, window.location.origin);
+    if (params) {
+      Object.keys(params).forEach((k) => url.searchParams.set(k, params[k]));
     }
-    return res;
+    fetch(url.toString(), {
+      cache: 'no-store',
+      keepalive: true,
+      priority: 'high'
+    }).catch(() => {});
+  }
+
+  // Eliminates 300ms mobile tap delay using pointerdown with double-fire protection
+  function bindFastTap(el, handler) {
+    if (!el) return;
+    let handledOnPointer = false;
+    let pointerTime = 0;
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button && e.button !== 0) return;
+      handledOnPointer = true;
+      pointerTime = Date.now();
+      handler(e);
+    }, { passive: false });
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (handledOnPointer && Date.now() - pointerTime < 450) return;
+      handler(e);
+    });
+  }
+
+  function sendKey(keyName) {
+    vibrate(12);
+    apiFastGet('/key', { k: keyName });
+  }
+
+  function sendVolume(action) {
+    vibrate(15);
+    showToast('Volume: ' + action);
+    apiFastGet('/volume', { v: action });
   }
 
   async function sendText(text, openInBrowser) {
@@ -56,14 +89,8 @@
     }
   }
 
-  async function sendVolume(action) {
-    vibrate(20);
-    showToast('Volume: ' + action);
-    return await apiGet('/volume', { v: action });
-  }
-
   async function sendLaunch(pkg, label) {
-    vibrate(30);
+    vibrate(25);
     showToast('Launching ' + (label || pkg) + '...');
     return await apiGet('/launch', { pkg: pkg });
   }
@@ -74,12 +101,12 @@
     return await apiGet('/input', { id: inputId });
   }
 
-  async function sendMouse(dx, dy, click, scroll, action) {
+  function sendMouse(dx, dy, click, scroll, action) {
     const params = { dx: Math.round(dx || 0), dy: Math.round(dy || 0) };
     if (click) params.click = 'true';
     if (scroll) params.scroll = 'true';
     if (action) params.action = action;
-    return await apiGet('/mouse', params);
+    apiFastGet('/mouse', params);
   }
 
   // --- PWA Registration & Install Banner ---
@@ -130,17 +157,18 @@
     });
     if (tabId === 'apps') {
       loadApps();
+    } else if (tabId === 'shield') {
+      loadShieldStatus();
     }
   }
 
   tabButtons.forEach((btn) => {
-    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    bindFastTap(btn, () => switchTab(btn.dataset.tab));
   });
 
-  // --- Key Buttons Binding ---
+  // --- Key Buttons Binding (Zero-Latency Pointerdown) ---
   document.querySelectorAll('[data-key]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
+    bindFastTap(btn, (e) => {
       const k = btn.dataset.key;
       if (k === 'VOL_UP' || k === 'VOL_DOWN' || k === 'MUTE') {
         sendVolume(k);
@@ -153,15 +181,15 @@
   // Power Button
   const btnPower = document.getElementById('btn-power');
   if (btnPower) {
-    btnPower.addEventListener('click', () => sendKey('POWER'));
+    bindFastTap(btnPower, () => sendKey('POWER'));
   }
 
-  // Quick Text Buttons
+  // Quick Text Presets
   document.querySelectorAll('.quick-text').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    bindFastTap(btn, () => {
       vibrate(15);
       const text = btn.dataset.text;
-      const input = document.getElementById('kb-text-input');
+      const input = document.getElementById('unified-input');
       if (input) {
         input.value = (input.value || '') + text;
         input.focus();
@@ -169,110 +197,57 @@
     });
   });
 
-  // --- Keyboard Tab Handling ---
-  const kbInput = document.getElementById('kb-text-input');
-  const kbBtnClear = document.getElementById('kb-btn-clear');
-  const kbBtnSend = document.getElementById('kb-btn-send');
-  const kbBtnBrowser = document.getElementById('kb-btn-browser');
+  // --- Direct Address & Keystroke Input Bar ---
+  const unifiedInput = document.getElementById('unified-input');
+  const btnQuickGo = document.getElementById('btn-quick-go');
+  const btnQuickSend = document.getElementById('btn-quick-send');
+  const btnQuickClear = document.getElementById('btn-quick-clear');
+  const btnQuickShield = document.getElementById('btn-quick-shield');
 
-  if (kbBtnClear && kbInput) {
-    kbBtnClear.addEventListener('click', () => {
-      kbInput.value = '';
-      kbInput.focus();
+  if (btnQuickClear && unifiedInput) {
+    btnQuickClear.addEventListener('click', () => {
+      unifiedInput.value = '';
+      unifiedInput.focus();
     });
   }
 
-  if (kbBtnSend && kbInput) {
-    kbBtnSend.addEventListener('click', () => {
-      const val = kbInput.value.trim();
-      if (val) {
-        sendText(val, false);
-      }
+  if (btnQuickGo && unifiedInput) {
+    bindFastTap(btnQuickGo, () => {
+      const val = unifiedInput.value.trim();
+      if (val) sendText(val, true);
     });
   }
 
-  if (kbBtnBrowser && kbInput) {
-    kbBtnBrowser.addEventListener('click', () => {
-      const val = kbInput.value.trim();
-      if (val) {
-        sendText(val, true);
-      }
+  if (btnQuickSend && unifiedInput) {
+    bindFastTap(btnQuickSend, () => {
+      const val = unifiedInput.value.trim();
+      if (val) sendText(val, false);
     });
   }
 
-  if (kbInput) {
-    kbInput.addEventListener('keydown', (e) => {
+  if (btnQuickShield) {
+    bindFastTap(btnQuickShield, () => {
+      switchTab('shield');
+    });
+  }
+
+  if (unifiedInput) {
+    unifiedInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        const val = kbInput.value.trim();
-        if (val) sendText(val, false);
+        const val = unifiedInput.value.trim();
+        if (val) {
+          if (val.startsWith('http://') || val.startsWith('https://') || val.includes('.com') || val.includes('.org') || val.includes('.net') || val.includes('.tv')) {
+            sendText(val, true);
+          } else {
+            sendText(val, false);
+          }
+        }
       }
     });
   }
 
-  // --- Real-Time Keystroke Mode ---
-  const toggleLive = document.getElementById('kb-toggle-live');
-  const liveContainer = document.getElementById('live-input-container');
-  const liveCapturer = document.getElementById('live-key-capturer');
-
-  if (toggleLive && liveContainer && liveCapturer) {
-    toggleLive.addEventListener('change', () => {
-      vibrate(15);
-      if (toggleLive.checked) {
-        liveContainer.style.display = 'flex';
-        liveCapturer.focus();
-        showToast('Live typing mode active');
-      } else {
-        liveContainer.style.display = 'none';
-      }
-    });
-
-    // Handle physical / desktop keyboard navigation keys
-    liveCapturer.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        sendKey('ENTER');
-      } else if (e.key === 'Backspace' && e.keyCode !== 229) {
-        sendKey('BACKSPACE');
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        sendKey('UP');
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        sendKey('DOWN');
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        sendKey('LEFT');
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        sendKey('RIGHT');
-      } else if (e.key && e.key.length === 1 && e.keyCode !== 229) {
-        sendKey(e.key === ' ' ? 'SPACE' : e.key.toUpperCase());
-      }
-    });
-
-    // Handle mobile soft keyboard (Android Gboard, iOS virtual keyboard IME)
-    liveCapturer.addEventListener('input', (e) => {
-      const inputType = e.inputType || '';
-      if (inputType === 'deleteContentBackward') {
-        sendKey('BACKSPACE');
-      } else if (inputType === 'insertLineBreak') {
-        sendKey('ENTER');
-      } else if (e.data) {
-        for (const ch of e.data) {
-          sendKey(ch === ' ' ? 'SPACE' : ch.toUpperCase());
-        }
-      } else if (liveCapturer.value) {
-        const val = liveCapturer.value;
-        for (const ch of val) {
-          sendKey(ch === ' ' ? 'SPACE' : ch.toUpperCase());
-        }
-      }
-      liveCapturer.value = '';
-    });
-  }
-
-  // --- Browser Touchpad ---
+  // --- Unified Touchpad Trackpad ---
   const touchpadSurface = document.getElementById('touchpad-surface');
   let tpStartX = 0;
   let tpStartY = 0;
@@ -344,7 +319,7 @@
         tpTwoFingerLastY = currentY;
         tpTwoFingerLastX = currentX;
 
-        if (now - tpLastSend > 25) {
+        if (now - tpLastSend > 16) {
           tpLastSend = now;
           sendMouse(-dx, -dy, false, true, 'scroll');
         }
@@ -366,14 +341,12 @@
           }
         }
 
-        if (now - tpLastSend > 25) {
+        if (now - tpLastSend > 16) {
           tpLastSend = now;
           if (isDoubleTapScroll) {
             sendMouse(0, -dy * 2.2, false, true, 'scroll');
-          } else if (isHolding) {
-            sendMouse(dx, dy, false, false, 'move');
           } else {
-            sendMouse(dx, dy, false, false, 'move');
+            sendMouse(dx, dy, false, false, isHolding ? 'move' : 'move');
           }
         }
       }
@@ -397,34 +370,81 @@
       if (!tpMoved && e.touches.length === 0) {
         vibrate(20);
         sendMouse(0, 0, true, false, 'click');
-        showToast('Click');
       }
     });
   }
 
   const tpBtnClick = document.getElementById('tp-btn-click');
   if (tpBtnClick) {
-    tpBtnClick.addEventListener('click', () => {
+    bindFastTap(tpBtnClick, () => {
       vibrate(20);
-      sendMouse(0, 0, true);
+      sendMouse(0, 0, true, false, 'click');
     });
   }
-  const tpBtnScrollUp = document.getElementById('tp-btn-scroll-up');
-  if (tpBtnScrollUp) {
-    tpBtnScrollUp.addEventListener('click', () => sendKey('PAGE_UP'));
-  }
-  const tpBtnScrollDown = document.getElementById('tp-btn-scroll-down');
-  if (tpBtnScrollDown) {
-    tpBtnScrollDown.addEventListener('click', () => sendKey('PAGE_DOWN'));
+
+  // --- VoidShield Controls ---
+  const toggleAdblock = document.getElementById('shield-toggle-adblock');
+  const togglePopups = document.getElementById('shield-toggle-popups');
+  const toggleUa = document.getElementById('shield-toggle-ua');
+  const toggleCookies = document.getElementById('shield-toggle-cookies');
+  const btnClearData = document.getElementById('shield-btn-clear');
+  const shieldStatBadge = document.getElementById('shield-stat-badge');
+
+  async function loadShieldStatus() {
+    try {
+      const res = await apiGet('/browser/config');
+      if (res) {
+        if (toggleAdblock && typeof res.adblock === 'boolean') toggleAdblock.checked = res.adblock;
+        if (togglePopups && typeof res.popups === 'boolean') togglePopups.checked = res.popups;
+        if (toggleUa && typeof res.desktopUa === 'boolean') toggleUa.checked = res.desktopUa;
+        if (toggleCookies && typeof res.cookies === 'boolean') toggleCookies.checked = res.cookies;
+        if (shieldStatBadge && typeof res.blockedCount === 'number') {
+          shieldStatBadge.textContent = res.blockedCount + ' BLOCKED';
+        }
+      }
+    } catch (e) {}
   }
 
-  // Browser Toolbar Buttons
-  document.getElementById('tp-btn-back')?.addEventListener('click', () => sendKey('BACK'));
-  document.getElementById('tp-btn-fwd')?.addEventListener('click', () => apiGet('/tap', { label: 'FWD' }));
-  document.getElementById('tp-btn-home')?.addEventListener('click', () => apiGet('/tap', { label: 'HOME' }));
-  document.getElementById('tp-btn-reload')?.addEventListener('click', () => apiGet('/tap', { label: 'RELOAD' }));
-  document.getElementById('tp-btn-search')?.addEventListener('click', () => apiGet('/tap', { label: 'SEARCH' }));
-  document.getElementById('tp-btn-exit')?.addEventListener('click', () => apiGet('/tap', { label: 'EXIT' }));
+  if (toggleAdblock) {
+    toggleAdblock.addEventListener('change', () => {
+      vibrate(15);
+      apiGet('/browser/config', { adblock: toggleAdblock.checked ? 'true' : 'false' });
+      showToast('AdBlock: ' + (toggleAdblock.checked ? 'ENABLED' : 'DISABLED'));
+    });
+  }
+
+  if (togglePopups) {
+    togglePopups.addEventListener('change', () => {
+      vibrate(15);
+      apiGet('/browser/config', { popups: togglePopups.checked ? 'true' : 'false' });
+      showToast('Popup Shield: ' + (togglePopups.checked ? 'ENABLED' : 'DISABLED'));
+    });
+  }
+
+  if (toggleUa) {
+    toggleUa.addEventListener('change', () => {
+      vibrate(15);
+      apiGet('/browser/config', { ua: toggleUa.checked ? 'desktop' : 'tv' });
+      showToast('User-Agent: ' + (toggleUa.checked ? 'DESKTOP' : 'SMART TV'));
+    });
+  }
+
+  if (toggleCookies) {
+    toggleCookies.addEventListener('change', () => {
+      vibrate(15);
+      apiGet('/browser/config', { cookies: toggleCookies.checked ? 'true' : 'false' });
+      showToast('Cookies: ' + (toggleCookies.checked ? 'ACCEPTED' : 'REJECTED'));
+    });
+  }
+
+  if (btnClearData) {
+    bindFastTap(btnClearData, async () => {
+      vibrate(30);
+      showToast('Clearing cache and cookies...');
+      await apiGet('/browser/clear');
+      loadShieldStatus();
+    });
+  }
 
   // --- TV Apps Loader ---
   const appsGrid = document.getElementById('apps-grid');
@@ -470,7 +490,7 @@
 
       card.appendChild(img);
       card.appendChild(lbl);
-      card.addEventListener('click', () => sendLaunch(app.packageName, app.label));
+      bindFastTap(card, () => sendLaunch(app.packageName, app.label));
       appsGrid.appendChild(card);
     });
   }
@@ -479,7 +499,7 @@
     appsFilterInput.addEventListener('input', () => renderApps(installedApps));
   }
   if (appsBtnRefresh) {
-    appsBtnRefresh.addEventListener('click', () => {
+    bindFastTap(appsBtnRefresh, () => {
       vibrate(15);
       loadApps();
     });
@@ -487,7 +507,7 @@
 
   // --- Inputs Panel ---
   document.querySelectorAll('[data-input]').forEach((card) => {
-    card.addEventListener('click', () => {
+    bindFastTap(card, () => {
       sendInput(card.dataset.input);
     });
   });
@@ -529,4 +549,5 @@
 
   setInterval(pollState, 1500);
   pollState();
+  loadShieldStatus();
 })();

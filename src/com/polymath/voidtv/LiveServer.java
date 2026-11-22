@@ -30,6 +30,9 @@ public class LiveServer {
         boolean sendText(String text);
         boolean mouse(float dx, float dy, boolean click, boolean scroll, String action);
         boolean volume(String action);
+        String browserConfig();
+        boolean updateBrowserConfig(String adblock, String popups, String ua, String cookies);
+        boolean clearBrowserData();
     }
 
     private final int port;
@@ -79,53 +82,65 @@ public class LiveServer {
         executor.shutdownNow();
     }
 
+    private static final ThreadLocal<Boolean> CURRENT_KEEP_ALIVE = ThreadLocal.withInitial(() -> Boolean.TRUE);
+
     private void handleClient(Socket client) {
         try {
-            client.setSoTimeout(5000);
+            client.setTcpNoDelay(true);
+            client.setSoTimeout(10000);
             BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream(), StandardCharsets.UTF_8));
-            String requestLine = reader.readLine();
-            if (requestLine == null) {
-                client.close();
-                return;
-            }
 
-            int contentLength = 0;
-            String origin = null;
-            String authHeader = null;
-            String header;
-            while ((header = reader.readLine()) != null && !header.isEmpty()) {
-                String lower = header.toLowerCase(Locale.ROOT);
-                if (lower.startsWith("content-length:")) {
-                    try {
-                        contentLength = Integer.parseInt(header.substring(15).trim());
-                    } catch (Exception ignored) {}
-                } else if (lower.startsWith("origin:")) {
-                    origin = header.substring(7).trim();
-                } else if (lower.startsWith("x-void-token:")) {
-                    authHeader = header.substring(13).trim();
-                } else if (lower.startsWith("authorization:")) {
-                    String val = header.substring(14).trim();
-                    if (val.toLowerCase(Locale.ROOT).startsWith("bearer ")) {
-                        authHeader = val.substring(7).trim();
+            while (running && !client.isClosed()) {
+                String requestLine = reader.readLine();
+                if (requestLine == null || requestLine.isEmpty()) {
+                    break;
+                }
+
+                int contentLength = 0;
+                String origin = null;
+                String authHeader = null;
+                boolean keepAlive = true;
+                String header;
+                while ((header = reader.readLine()) != null && !header.isEmpty()) {
+                    String lower = header.toLowerCase(Locale.ROOT);
+                    if (lower.startsWith("content-length:")) {
+                        try {
+                            contentLength = Integer.parseInt(header.substring(15).trim());
+                        } catch (Exception ignored) {}
+                    } else if (lower.startsWith("origin:")) {
+                        origin = header.substring(7).trim();
+                    } else if (lower.startsWith("connection:")) {
+                        if (lower.contains("close")) keepAlive = false;
+                    } else if (lower.startsWith("x-void-token:")) {
+                        authHeader = header.substring(13).trim();
+                    } else if (lower.startsWith("authorization:")) {
+                        String val = header.substring(14).trim();
+                        if (val.toLowerCase(Locale.ROOT).startsWith("bearer ")) {
+                            authHeader = val.substring(7).trim();
+                        }
                     }
                 }
-            }
 
-            String body = "";
-            if (contentLength > 0) {
-                char[] buf = new char[contentLength];
-                int read = 0;
-                while (read < contentLength) {
-                    int r = reader.read(buf, read, contentLength - read);
-                    if (r == -1) break;
-                    read += r;
+                CURRENT_KEEP_ALIVE.set(keepAlive);
+
+                String body = "";
+                if (contentLength > 0) {
+                    char[] buf = new char[contentLength];
+                    int read = 0;
+                    while (read < contentLength) {
+                        int r = reader.read(buf, read, contentLength - read);
+                        if (r == -1) break;
+                        read += r;
+                    }
+                    body = new String(buf, 0, read);
                 }
-                body = new String(buf, 0, read);
-            }
 
-            route(client, requestLine, body, origin, authHeader);
+                route(client, requestLine, body, origin, authHeader);
+                if (!keepAlive) break;
+            }
         } catch (Exception ignored) {
         } finally {
+            CURRENT_KEEP_ALIVE.remove();
             try { client.close(); } catch (Exception ignored) {}
         }
     }
@@ -257,6 +272,24 @@ public class LiveServer {
                 reply(client, ok ? 200 : 400, "application/json", "{\"ok\":" + ok + ",\"input\":\"" + escape(in) + "\"}");
                 return;
             }
+            case "/browser/config": {
+                if ("POST".equals(method)) {
+                    String adblock = param(query, "adblock", body);
+                    String popups = param(query, "popups", body);
+                    String ua = param(query, "ua", body);
+                    String cookies = param(query, "cookies", body);
+                    boolean ok = host.updateBrowserConfig(adblock, popups, ua, cookies);
+                    reply(client, ok ? 200 : 400, "application/json", host.browserConfig());
+                } else {
+                    reply(client, 200, "application/json", host.browserConfig());
+                }
+                return;
+            }
+            case "/browser/clear": {
+                boolean ok = host.clearBrowserData();
+                reply(client, ok ? 200 : 400, "application/json", "{\"ok\":" + ok + "}");
+                return;
+            }
             case "/eval": {
                 String token = param(query, "token", null);
                 if (token.isEmpty() && authHeader != null) {
@@ -296,6 +329,7 @@ public class LiveServer {
             }
             is.close();
             byte[] payload = baos.toByteArray();
+            boolean keep = CURRENT_KEEP_ALIVE.get();
             String head = "HTTP/1.1 200 OK\r\n"
                 + "Content-Type: " + contentType + "\r\n"
                 + "Content-Length: " + payload.length + "\r\n"
@@ -303,7 +337,7 @@ public class LiveServer {
                 + "Cache-Control: " + (isServiceWorker ? "no-cache" : "public, max-age=3600") + "\r\n"
                 + "Access-Control-Allow-Origin: *\r\n"
                 + "Access-Control-Allow-Headers: Content-Type, X-Void-Token, Authorization\r\n"
-                + "Connection: close\r\n\r\n";
+                + "Connection: " + (keep ? "keep-alive" : "close") + "\r\n\r\n";
             OutputStream out = client.getOutputStream();
             out.write(head.getBytes(StandardCharsets.UTF_8));
             out.write(payload);
@@ -375,12 +409,13 @@ public class LiveServer {
         if (body == null) body = "";
         byte[] payload = body.getBytes(StandardCharsets.UTF_8);
         String status = code == 200 ? "200 OK" : code == 401 ? "401 Unauthorized" : code == 403 ? "403 Forbidden" : code == 404 ? "404 Not Found" : code == 405 ? "405 Method Not Allowed" : "400 Bad Request";
+        boolean keep = CURRENT_KEEP_ALIVE.get();
         String head = "HTTP/1.1 " + status + "\r\n"
             + "Content-Type: " + type + "\r\n"
             + "Content-Length: " + payload.length + "\r\n"
             + "Access-Control-Allow-Origin: *\r\n"
             + "Access-Control-Allow-Headers: Content-Type, X-Void-Token, Authorization\r\n"
-            + "Connection: close\r\n\r\n";
+            + "Connection: " + (keep ? "keep-alive" : "close") + "\r\n\r\n";
         OutputStream out = client.getOutputStream();
         out.write(head.getBytes(StandardCharsets.UTF_8));
         out.write(payload);
