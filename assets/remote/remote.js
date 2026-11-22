@@ -189,7 +189,7 @@
     bindFastTap(btn, () => {
       vibrate(15);
       const text = btn.dataset.text;
-      const input = document.getElementById('unified-input');
+      const input = document.getElementById('kb-text-input') || document.getElementById('unified-input');
       if (input) {
         input.value = (input.value || '') + text;
         input.focus();
@@ -197,45 +197,42 @@
     });
   });
 
-  // --- Direct Address & Keystroke Input Bar ---
-  const unifiedInput = document.getElementById('unified-input');
-  const btnQuickGo = document.getElementById('btn-quick-go');
-  const btnQuickSend = document.getElementById('btn-quick-send');
-  const btnQuickClear = document.getElementById('btn-quick-clear');
-  const btnQuickShield = document.getElementById('btn-quick-shield');
+  // --- Keyboard & Keystroke Input Handling ---
+  const kbInput = document.getElementById('kb-text-input');
+  const kbBtnClear = document.getElementById('kb-btn-clear');
+  const kbBtnSend = document.getElementById('kb-btn-send');
+  const kbBtnBrowser = document.getElementById('kb-btn-browser');
+  const kbToggleLive = document.getElementById('kb-toggle-live');
+  const liveInputContainer = document.getElementById('live-input-container');
+  const liveCapturer = document.getElementById('live-key-capturer');
+  const liveStatus = document.getElementById('live-typing-status');
 
-  if (btnQuickClear && unifiedInput) {
-    btnQuickClear.addEventListener('click', () => {
-      unifiedInput.value = '';
-      unifiedInput.focus();
+  if (kbBtnClear && kbInput) {
+    kbBtnClear.addEventListener('click', () => {
+      kbInput.value = '';
+      kbInput.focus();
     });
   }
 
-  if (btnQuickGo && unifiedInput) {
-    bindFastTap(btnQuickGo, () => {
-      const val = unifiedInput.value.trim();
-      if (val) sendText(val, true);
-    });
-  }
-
-  if (btnQuickSend && unifiedInput) {
-    bindFastTap(btnQuickSend, () => {
-      const val = unifiedInput.value.trim();
+  if (kbBtnSend && kbInput) {
+    bindFastTap(kbBtnSend, () => {
+      const val = kbInput.value.trim();
       if (val) sendText(val, false);
     });
   }
 
-  if (btnQuickShield) {
-    bindFastTap(btnQuickShield, () => {
-      switchTab('shield');
+  if (kbBtnBrowser && kbInput) {
+    bindFastTap(kbBtnBrowser, () => {
+      const val = kbInput.value.trim();
+      if (val) sendText(val, true);
     });
   }
 
-  if (unifiedInput) {
-    unifiedInput.addEventListener('keydown', (e) => {
+  if (kbInput) {
+    kbInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        const val = unifiedInput.value.trim();
+        const val = kbInput.value.trim();
         if (val) {
           if (val.startsWith('http://') || val.startsWith('https://') || val.includes('.com') || val.includes('.org') || val.includes('.net') || val.includes('.tv')) {
             sendText(val, true);
@@ -244,6 +241,64 @@
           }
         }
       }
+    });
+  }
+
+  // Real-Time Mobile Keystroke Streamer
+  if (kbToggleLive && liveInputContainer && liveCapturer) {
+    kbToggleLive.addEventListener('change', () => {
+      vibrate(15);
+      if (kbToggleLive.checked) {
+        liveInputContainer.style.display = 'block';
+        liveCapturer.focus();
+        if (liveStatus) liveStatus.textContent = 'Listening for phone keystrokes...';
+      } else {
+        liveInputContainer.style.display = 'none';
+        liveCapturer.blur();
+      }
+    });
+
+    liveCapturer.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        sendKey('BACKSPACE');
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        sendKey('ENTER');
+      } else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        sendKey('SPACE');
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        sendKey('TAB');
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        sendKey('BACK');
+      } else if (e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        // Direct printable character
+        e.preventDefault();
+        sendKey(e.key.toUpperCase());
+      }
+    });
+
+    // Handle mobile soft keyboard (Android Gboard, iOS virtual keyboard IME)
+    liveCapturer.addEventListener('input', (e) => {
+      const inputType = e.inputType || '';
+      if (inputType === 'deleteContentBackward') {
+        sendKey('BACKSPACE');
+      } else if (inputType === 'insertLineBreak') {
+        sendKey('ENTER');
+      } else if (e.data) {
+        for (const ch of e.data) {
+          sendKey(ch === ' ' ? 'SPACE' : ch.toUpperCase());
+        }
+      } else if (liveCapturer.value) {
+        const val = liveCapturer.value;
+        for (const ch of val) {
+          sendKey(ch === ' ' ? 'SPACE' : ch.toUpperCase());
+        }
+      }
+      liveCapturer.value = '';
     });
   }
 
@@ -379,6 +434,22 @@
     bindFastTap(tpBtnClick, () => {
       vibrate(20);
       sendMouse(0, 0, true, false, 'click');
+    });
+  }
+
+  const tpBtnScrollUp = document.getElementById('tp-btn-scroll-up');
+  if (tpBtnScrollUp) {
+    bindFastTap(tpBtnScrollUp, () => {
+      vibrate(15);
+      sendMouse(0, -60, false, true, 'scroll');
+    });
+  }
+
+  const tpBtnScrollDown = document.getElementById('tp-btn-scroll-down');
+  if (tpBtnScrollDown) {
+    bindFastTap(tpBtnScrollDown, () => {
+      vibrate(15);
+      sendMouse(0, 60, false, true, 'scroll');
     });
   }
 
