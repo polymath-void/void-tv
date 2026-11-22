@@ -81,14 +81,17 @@ Unknown actions fall through to a toast.
 No manifest, resource or layout change is needed, and no `layout.json` migration
 is required because the id is new and additive.
 
-## 5. Agent surface
+## 5. Agent & Remote Controller surface
 
-Built-ins are ordinary cards, so they are addressable from the control API:
+Built-ins are ordinary cards, so they are addressable from both the control API and the PWA Remote Controller:
 
 ```bash
 ./live-push.sh state                      # includes action: "builtin:launcher-settings"
 ./live-push.sh tap "Launcher Settings"
+./live-push.sh tap "VOID SYSTEM"          # unfolds system row if folded
 ```
+
+The TV launcher HUD displays the live remote URL: `REMOTE: <TV_IP>:4444`. Any smartphone connected to the local network can open this address, access the **📱 APPS** tab, and launch built-in system tools or installed packages directly.
 
 ## 6. Non-goals
 

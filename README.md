@@ -95,6 +95,11 @@ VoidTV separates persistent shell tools from user-editable layout data:
 - **TV Hardware Input Switcher**: Switch to HDMI 1, HDMI 2, or AV with one tap (`/inputs`, `/input?id=..`).
 - **PWA Installation**: Open `http://<tv-ip>:4444` on iOS Safari or Android Chrome and tap "Add to Home Screen" or "Install App". The remote runs in standalone mode offline or online with zero dependencies.
 
+> For comprehensive architecture, PWA implementation details, and REST API specs, refer to:
+> - [PWA Remote Controller Guide (`docs/remote-controller.md`)](file:///media/polymath/workspace/projects/void-tv/docs/remote-controller.md)
+> - [Launcher Architecture & Forensic Mapping (`docs/tv_launcher_architecture.md`)](file:///media/polymath/workspace/projects/void-tv/docs/tv_launcher_architecture.md)
+> - [Built-in App Registry (`docs/builtin-apps.md`)](file:///media/polymath/workspace/projects/void-tv/docs/builtin-apps.md)
+
 ### Endpoints
 
 | Endpoint | Method | Description |
