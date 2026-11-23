@@ -5,11 +5,13 @@ import android.accessibilityservice.GestureDescription;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.media.AudioManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -22,6 +24,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 
 import java.util.List;
 import java.util.Locale;
@@ -221,7 +224,12 @@ public class VoidAccessibilityService extends AccessibilityService {
             return deleteLastChar();
         }
 
-        // 5. Alphanumeric / Character Input
+        // 5. Space Key
+        if ("SPACE".equals(rawKey) || " ".equals(rawKey)) {
+            return appendChar(" ");
+        }
+
+        // 6. Alphanumeric / Character Input
         if (rawKey.length() == 1) {
             return appendChar(rawKey);
         }
@@ -266,7 +274,12 @@ public class VoidAccessibilityService extends AccessibilityService {
             }
         } catch (Exception ignored) {}
 
-        // Fallback 1: Focused Node Click
+        // Fallback 1: Try clicking on-screen Search / Done / Go button if present
+        if (tapByLabel("Search") || tapByLabel("Done") || tapByLabel("Go")) {
+            return true;
+        }
+
+        // Fallback 2: Focused Node Click
         try {
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
@@ -278,22 +291,28 @@ public class VoidAccessibilityService extends AccessibilityService {
             }
         } catch (Exception ignored) {}
 
-        // Fallback 2: Tap at cursor / center
+        // Fallback 3: Tap at cursor / center
         return dispatchTap(cursorX, cursorY);
     }
 
     private boolean deleteLastChar() {
         try {
-            AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root == null) return false;
-            AccessibilityNodeInfo input = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-            if (input == null) return false;
-            CharSequence current = input.getText();
-            if (current != null && current.length() > 0) {
-                CharSequence deleted = current.subSequence(0, current.length() - 1);
-                Bundle args = new Bundle();
-                args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, deleted);
-                return input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+            AccessibilityNodeInfo input = findTargetInputNode();
+            if (input != null) {
+                CharSequence current = input.getText();
+                if (current != null && current.length() > 0) {
+                    CharSequence deleted = current.subSequence(0, current.length() - 1);
+                    Bundle args = new Bundle();
+                    args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, deleted);
+                    if (input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
+                        return true;
+                    }
+                }
+            }
+
+            // Fallback 1: Tap Delete / Backspace button on on-screen keyboard
+            if (tapByLabel("Delete") || tapByLabel("⌫") || tapByLabel("Backspace") || tapByLabel("Clear")) {
+                return true;
             }
         } catch (Exception ignored) {}
         return false;
@@ -301,49 +320,181 @@ public class VoidAccessibilityService extends AccessibilityService {
 
     private boolean appendChar(String ch) {
         try {
-            AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root == null) return false;
-            AccessibilityNodeInfo input = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-            if (input == null) return false;
-            CharSequence current = input.getText();
-            String newVal = (current != null ? current.toString() : "") + ch;
-            Bundle args = new Bundle();
-            args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newVal);
-            return input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+            AccessibilityNodeInfo input = findTargetInputNode();
+            if (input != null) {
+                CharSequence current = input.getText();
+                String newVal = (current != null ? current.toString() : "") + ch;
+                Bundle args = new Bundle();
+                args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newVal);
+                if (input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
+                    return true;
+                }
+            }
+
+            // Fallback 1: Tap letter button on on-screen keyboard (Cobalt UI / YouTube TV)
+            if (" ".equals(ch)) {
+                if (tapByLabel("Space") || tapByLabel("SPACE")) return true;
+            } else {
+                if (tapByLabel(ch) || tapByLabel(ch.toUpperCase(Locale.ROOT)) || tapByLabel(ch.toLowerCase(Locale.ROOT))) {
+                    return true;
+                }
+            }
         } catch (Exception ignored) {}
         return false;
     }
 
     public boolean injectText(String text) {
-        if (text == null) return false;
+        if (text == null || text.trim().isEmpty()) return false;
         try {
-            AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root != null) {
-                AccessibilityNodeInfo input = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-                if (input != null) {
-                    Bundle args = new Bundle();
-                    args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
-                    if (input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
+            // 1. Try to find target input node across all windows
+            AccessibilityNodeInfo input = findTargetInputNode();
+            if (input != null) {
+                Bundle args = new Bundle();
+                args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
+                if (input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
+                    // Trigger search after setting text
+                    try {
+                        performGlobalAction(GLOBAL_ACTION_DPAD_CENTER);
+                    } catch (Exception ignored) {}
+                    return true;
+                }
+
+                // Fallback: Clipboard Paste
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                if (cm != null) {
+                    cm.setPrimaryClip(ClipData.newPlainText("voidtv_input", text));
+                    if (input.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
                         return true;
                     }
                 }
             }
 
-            // Fallback: Clipboard Paste
-            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            if (cm != null) {
-                cm.setPrimaryClip(ClipData.newPlainText("voidtv_input", text));
-                if (root != null) {
-                    AccessibilityNodeInfo input = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-                    if (input != null && input.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
+            // 2. Fallback: If YouTube TV is foreground, launch native YouTube search intent!
+            if (currentPackage != null && currentPackage.contains("youtube")) {
+                try {
+                    Intent searchIntent = new Intent(Intent.ACTION_SEARCH);
+                    searchIntent.setPackage("com.google.android.youtube.tv");
+                    searchIntent.putExtra("query", text);
+                    searchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(searchIntent);
+                    return true;
+                } catch (Exception e1) {
+                    try {
+                        Intent viewIntent = new Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(text)));
+                        viewIntent.setPackage("com.google.android.youtube.tv");
+                        viewIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(viewIntent);
                         return true;
-                    }
+                    } catch (Exception ignored) {}
                 }
+            }
+
+            // 3. Fallback: Type characters one by one via on-screen buttons
+            boolean anySuccess = false;
+            for (int i = 0; i < text.length(); i++) {
+                String c = String.valueOf(text.charAt(i));
+                if (appendChar(c)) {
+                    anySuccess = true;
+                }
+            }
+            if (anySuccess) {
+                tapByLabel("Search");
+                return true;
             }
         } catch (Exception e) {
             Log.e(TAG, "Error injecting text", e);
         }
         return false;
+    }
+
+    public AccessibilityNodeInfo findTargetInputNode() {
+        // 1. Try active window
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root != null) {
+            AccessibilityNodeInfo node = findInputInHierarchy(root);
+            if (node != null) return node;
+        }
+
+        // 2. Try all windows (application, input method, system dialogs)
+        try {
+            List<AccessibilityWindowInfo> windows = getWindows();
+            if (windows != null) {
+                for (AccessibilityWindowInfo win : windows) {
+                    AccessibilityNodeInfo winRoot = win.getRoot();
+                    if (winRoot != null) {
+                        AccessibilityNodeInfo node = findInputInHierarchy(winRoot);
+                        if (node != null) return node;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return null;
+    }
+
+    private AccessibilityNodeInfo findInputInHierarchy(AccessibilityNodeInfo root) {
+        if (root == null) return null;
+
+        // A. Input focus
+        try {
+            AccessibilityNodeInfo focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+            if (focused != null) return focused;
+        } catch (Exception ignored) {}
+
+        // B. Accessibility focus if editable
+        try {
+            AccessibilityNodeInfo a11yFocused = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
+            if (a11yFocused != null && isEditableNode(a11yFocused)) {
+                return a11yFocused;
+            }
+        } catch (Exception ignored) {}
+
+        // C. Deep recursive search for any editable node
+        return searchEditableRecursive(root, 0);
+    }
+
+    private AccessibilityNodeInfo searchEditableRecursive(AccessibilityNodeInfo node, int depth) {
+        if (node == null || depth > 15) return null;
+
+        if (isEditableNode(node)) {
+            return node;
+        }
+
+        int childCount = node.getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null) {
+                AccessibilityNodeInfo result = searchEditableRecursive(child, depth + 1);
+                if (result != null) return result;
+            }
+        }
+        return null;
+    }
+
+    private boolean isEditableNode(AccessibilityNodeInfo node) {
+        if (node == null) return false;
+        if (node.isEditable()) return true;
+        if (supportsAction(node, AccessibilityNodeInfo.ACTION_SET_TEXT)) return true;
+
+        CharSequence className = node.getClassName();
+        if (className != null) {
+            String cls = className.toString();
+            if (cls.contains("EditText")) return true;
+            if (cls.contains("SearchView") || cls.contains("SearchAutoComplete")) return true;
+        }
+        return false;
+    }
+
+    private boolean supportsAction(AccessibilityNodeInfo node, int actionId) {
+        if (node == null) return false;
+        List<AccessibilityNodeInfo.AccessibilityAction> actions = node.getActionList();
+        if (actions != null) {
+            for (AccessibilityNodeInfo.AccessibilityAction act : actions) {
+                if (act.getId() == actionId) return true;
+            }
+        }
+        return (node.getActions() & actionId) != 0;
     }
 
     public boolean handleMouse(float dx, float dy, boolean click, boolean scroll, String action) {
@@ -378,26 +529,66 @@ public class VoidAccessibilityService extends AccessibilityService {
 
     public boolean tapByLabel(String label) {
         if (label == null || label.trim().isEmpty()) return false;
+        String target = label.trim();
         try {
+            // 1. Try active window
             AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root == null) return false;
-            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(label.trim());
-            if (nodes != null) {
-                for (AccessibilityNodeInfo node : nodes) {
-                    if (node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                        return true;
-                    }
-                    AccessibilityNodeInfo parent = node.getParent();
-                    while (parent != null) {
-                        if (parent.isClickable() && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            if (root != null && tapNodeByText(root, target)) {
+                return true;
+            }
+
+            // 2. Try all windows (e.g. keyboard window)
+            try {
+                List<AccessibilityWindowInfo> windows = getWindows();
+                if (windows != null) {
+                    for (AccessibilityWindowInfo win : windows) {
+                        AccessibilityNodeInfo winRoot = win.getRoot();
+                        if (winRoot != null && tapNodeByText(winRoot, target)) {
                             return true;
                         }
-                        parent = parent.getParent();
                     }
                 }
-            }
+            } catch (Exception ignored) {}
         } catch (Exception e) {
             Log.e(TAG, "Failed to tap by label: " + label, e);
+        }
+        return false;
+    }
+
+    private boolean tapNodeByText(AccessibilityNodeInfo root, String target) {
+        if (root == null) return false;
+
+        // Try exact match first
+        List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(target);
+        if (nodes != null && !nodes.isEmpty()) {
+            for (AccessibilityNodeInfo node : nodes) {
+                CharSequence text = node.getText();
+                CharSequence desc = node.getContentDescription();
+                boolean matches = (text != null && text.toString().equalsIgnoreCase(target))
+                    || (desc != null && desc.toString().equalsIgnoreCase(target));
+                if (matches) {
+                    if (clickNodeOrParent(node)) return true;
+                }
+            }
+            // If exact didn't match, try any returned node
+            for (AccessibilityNodeInfo node : nodes) {
+                if (clickNodeOrParent(node)) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean clickNodeOrParent(AccessibilityNodeInfo node) {
+        if (node == null) return false;
+        if (node.isClickable() && node.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            return true;
+        }
+        AccessibilityNodeInfo parent = node.getParent();
+        while (parent != null) {
+            if (parent.isClickable() && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                return true;
+            }
+            parent = parent.getParent();
         }
         return false;
     }

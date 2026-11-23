@@ -127,6 +127,27 @@ public class VoidControlHub implements LiveServer.Host {
             return activeService.injectText(text);
         }
 
+        // Fallback: If YouTube TV is running, launch search directly
+        if (appContext != null) {
+            try {
+                Intent searchIntent = new Intent(Intent.ACTION_SEARCH);
+                searchIntent.setPackage("com.google.android.youtube.tv");
+                searchIntent.putExtra("query", text);
+                searchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                appContext.startActivity(searchIntent);
+                return true;
+            } catch (Exception e1) {
+                try {
+                    Intent viewIntent = new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(text)));
+                    viewIntent.setPackage("com.google.android.youtube.tv");
+                    viewIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    appContext.startActivity(viewIntent);
+                    return true;
+                } catch (Exception ignored) {}
+            }
+        }
+
         return false;
     }
 
