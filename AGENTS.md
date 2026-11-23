@@ -2,15 +2,17 @@
 
 WebView-based Android TV home launcher for a single physical TV at `192.168.0.108:5555`. Native code is five Java files in `src/com/polymath/voidtv/` (`MainActivity.java`, `LiveServer.java`, `TvBridge.java`, `VoidAccessibilityService.java`, `VoidControlHub.java`); the entire UI is `assets/runtime/`. No Gradle, no tests, no CI.
 
-## Commands
+## Deployment & Zero-ADB Workflow
+
+**Core Principle: Port 4444 Not 5555.** Never depend on ADB (port 5555 or wireless debugging) for routine deployment or automation. In Android 11+ / Android TV 14, wireless debugging auto-disables on idle/sleep, and TCP port 5555 drops on standby. All updates and runtime controls operate through **Port 4444 (`LiveServer`)**.
 
 ```bash
 ./build.sh                                        # aapt2 -> javac -> d8 -> zipalign -> apksigner
-adb connect 192.168.0.108:5555
-adb -s 192.168.0.108:5555 install -r voidtv-release.apk
-./live-push.sh {layout|state|key <name>|tap <label>|open <url>|eval <js>|color <#hex>|launch <pkg>|ping}
+./live-push.sh update [apk]                       # Zero-ADB OTA deployment via LiveServer port 4444
+./live-push.sh {layout|state|key <name>|tap <label>|open <url>|eval <js>|color <#hex>|launch <pkg>|update|ping}
 ```
 
+- **Zero-ADB Update Bridge**: `./live-push.sh update` streams the APK directly to `LiveServer` (`POST /update?url=...`), staging and committing via `PackageInstaller.Session` (`USER_ACTION_NOT_REQUIRED`). `VoidUpdateReceiver` automatically relaunches `MainActivity` on `ACTION_MY_PACKAGE_REPLACED`.
 - `build.sh` deletes all previous outputs on every run and hard-codes `JAVA_HOME=/home/polymath/.local/jdk` plus the SDK at `/home/polymath/phone-backups-A142/termux/android-sdk`. Check those paths first when the build errors; do not add Gradle.
 - `javac` compiles `src/com/polymath/voidtv/*.java` with a flat glob. A new subpackage is silently skipped unless `build.sh` is updated.
 - If a reinstall fails on a signature mismatch, `debug.keystore` was regenerated (it is untracked and auto-created by `build.sh`). Uninstall first.
@@ -28,6 +30,8 @@ Only `/sdcard/voidtv/layout.json`, through a `FileObserver` that calls `window.H
 - `VoidControlHub` coordinates between `MainActivity` and `VoidAccessibilityService`.
   - When `MainActivity` is in the foreground: `MainActivity.dispatchKeyEvent` intercepts DPAD (UP/DOWN/LEFT/RIGHT), SELECT/ENTER, BACK, MENU, and `0`–`9` on both `ACTION_DOWN` and `ACTION_UP`. It consumes them (`return true`) and forwards them into JS as `window.FocusEngine.onKey(...)`.
   - When a third-party app is in the foreground (e.g. YouTube TV, Netflix, Settings): `VoidControlHub` routes requests to `VoidAccessibilityService`. It dispatches framework global actions (`GLOBAL_ACTION_HOME`, `GLOBAL_ACTION_BACK`, `GLOBAL_ACTION_RECENTS`, `GLOBAL_ACTION_POWER`), directional D-pad events (`GLOBAL_ACTION_DPAD_*`), focused node text injection (`ACTION_SET_TEXT`), and system-wide virtual mouse pointer with a floating `TYPE_ACCESSIBILITY_OVERLAY` cursor.
+  - **Cobalt / YouTube TV Input Invariant**: YouTube TV does not expose standard `EditText` or `FOCUS_INPUT`. Text entry uses deep multi-window traversal (`getWindows()`), on-screen letter tapping fallback (`tapByLabel`), or direct search intent dispatch (`Intent.ACTION_SEARCH` / `Intent.ACTION_VIEW`).
+  - **Leanback Settings Navigation Invariant**: Leanback Settings preference items have `isFocusable == true` and `isClickable == false`. Standard `AccessibilityNodeInfo.performAction(ACTION_CLICK)` will fail. Navigating Leanback settings requires DPAD navigation (`GLOBAL_ACTION_DPAD_*`) and `GLOBAL_ACTION_DPAD_CENTER` (`SELECT`).
 - **Invariant**: Never pass raw D-pad or `DPAD_CENTER` events to `launcherWebView` via `super.dispatchKeyEvent()` in launcher mode; WebView will consume them and fire phantom touch clicks on its internally focused element (e.g. `com.apps.livetv`). Launcher WebView is configured with `setFocusable(false)` and `setFocusableInTouchMode(false)`.
 - `app.js` keydown listener uses `e.preventDefault()` on handled keys.
 - The in-app browser overlay operates via a D-pad virtual cursor overlay (`cursorView`), supporting velocity acceleration, edge auto-scrolling, touch event injection (`ACTION_DOWN` + `ACTION_UP`), and seamless focus transitions to top toolbar buttons.
@@ -55,6 +59,7 @@ Drive and inspect the app through `:4444` instead — `GET /state` returns the c
 - `/mouse?dx=<dx>&dy=<dy>&click=<true|false>` → moves browser cursor and clicks
 - `/volume?v=<VOL_UP|VOL_DOWN|MUTE>` → adjusts TV system volume
 - `/tap?label=Netflix`, `/launch?pkg=...`, `/open?url=...` → JSON result
+- `POST /update?url=...` → Zero-ADB OTA package installation via `VoidUpdateManager`
 - `POST /eval` → fire-and-forget JS in the launcher WebView
 
 `live-push.sh` targets `TV_IP` and `PORT` when set. Use `./live-push.sh {layout|state|inputs|input <id>|key <name>|tap <label>|open <url>|eval <js>|color <#hex>|launch <pkg>|ping}`.
