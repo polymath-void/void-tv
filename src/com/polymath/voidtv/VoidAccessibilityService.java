@@ -86,6 +86,14 @@ public class VoidAccessibilityService extends AccessibilityService {
             CharSequence pkg = event.getPackageName();
             if (pkg != null && !pkg.toString().isEmpty()) {
                 currentPackage = pkg.toString();
+                // Autonomous PackageInstaller confirmation fallback
+                if (currentPackage.contains("packageinstaller")) {
+                    mainHandler.postDelayed(() -> {
+                        if (!tapByLabel("Update")) {
+                            tapByLabel("Install");
+                        }
+                    }, 400);
+                }
             }
         }
     }

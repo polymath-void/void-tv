@@ -1286,6 +1286,11 @@ public class MainActivity extends Activity implements LiveServer.Host {
         return true;
     }
 
+    @Override
+    public String updateApp(String url) {
+        return VoidControlHub.getInstance().updateApp(url);
+    }
+
     private static int keyCodeFor(String name) {
         if (name == null) return -1;
         String upper = name.trim().toUpperCase(java.util.Locale.ROOT);

@@ -33,6 +33,7 @@ public class LiveServer {
         String browserConfig();
         boolean updateBrowserConfig(String adblock, String popups, String ua, String cookies);
         boolean clearBrowserData();
+        String updateApp(String url);
     }
 
     private final int port;
@@ -288,6 +289,20 @@ public class LiveServer {
             case "/browser/clear": {
                 boolean ok = host.clearBrowserData();
                 reply(client, ok ? 200 : 400, "application/json", "{\"ok\":" + ok + "}");
+                return;
+            }
+            case "/update": {
+                if ("POST".equals(method)) {
+                    String updateUrl = param(query, "url", body);
+                    if (updateUrl.isEmpty()) {
+                        reply(client, 400, "application/json", "{\"ok\":false,\"error\":\"Missing update URL parameter\"}");
+                        return;
+                    }
+                    String res = host.updateApp(updateUrl);
+                    reply(client, 200, "application/json", res);
+                } else {
+                    reply(client, 405, "application/json", "{\"error\":\"POST only\"}");
+                }
                 return;
             }
             case "/eval": {

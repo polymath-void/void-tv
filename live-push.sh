@@ -76,7 +76,47 @@ case "$CMD" in
     curl -s "http://${TV_IP}:${PORT}/ping"
     echo ""
     ;;
+  update)
+    APK="$1"
+    if [ -z "$APK" ]; then
+      APK="$DIR/voidtv-release.apk"
+    fi
+    if [ ! -f "$APK" ]; then
+      echo "Building release APK first..."
+      "$DIR/build.sh"
+    fi
+    LOCAL_IP="$(ip -4 addr show to 192.168.0.0/16 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)"
+    if [ -z "$LOCAL_IP" ]; then
+      LOCAL_IP="192.168.0.115"
+    fi
+    HTTP_PORT=8844
+    echo "Serving $APK on http://${LOCAL_IP}:${HTTP_PORT}/update.apk..."
+    python3 -c "
+import http.server, socketserver
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/update.apk':
+            with open('$APK', 'rb') as f:
+                data = f.read()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/vnd.android.package-archive')
+            self.send_header('Content-Length', len(data))
+            self.end_headers()
+            self.wfile.write(data)
+        else:
+            self.send_error(404)
+s = socketserver.TCPServer(('0.0.0.0', $HTTP_PORT), Handler)
+s.handle_request()
+" &
+    SERVER_PID=$!
+    sleep 0.5
+    echo "Notifying TV LiveServer on port ${PORT} to install update..."
+    curl -s -X POST "http://${TV_IP}:${PORT}/update?url=http://${LOCAL_IP}:${HTTP_PORT}/update.apk"
+    echo ""
+    wait $SERVER_PID 2>/dev/null || true
+    echo "✓ App update delivered to TV!"
+    ;;
   *)
-    echo "Usage: $0 {layout|state|inputs|input <HDMI1|HDMI2|AV|select>|key <UP|DOWN|LEFT|RIGHT|SELECT|BACK|MENU|HOME|0-9>|tap <label>|open <url>|eval <code>|color <#hex>|launch <pkg>|ping}"
+    echo "Usage: $0 {layout|state|inputs|input <HDMI1|HDMI2|AV|select>|key <UP|DOWN|LEFT|RIGHT|SELECT|BACK|MENU|HOME|0-9>|tap <label>|open <url>|eval <code>|color <#hex>|launch <pkg>|update [apk]|ping}"
     ;;
 esac

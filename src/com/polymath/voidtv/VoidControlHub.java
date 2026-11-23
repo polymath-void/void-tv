@@ -287,6 +287,41 @@ public class VoidControlHub implements LiveServer.Host {
         return true;
     }
 
+    @Override
+    public String updateApp(String url) {
+        if (url == null || url.trim().isEmpty()) return "{\"ok\":false,\"error\":\"Empty URL\"}";
+        Context ctx = appContext != null ? appContext : activeLauncher;
+        if (ctx == null) return "{\"ok\":false,\"error\":\"No context available\"}";
+
+        final String[] result = {null};
+        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+
+        VoidUpdateManager.installFromUrlAsync(ctx, url.trim(), new VoidUpdateManager.UpdateCallback() {
+            @Override
+            public void onProgress(String message, int percent) {
+                Log.i(TAG, "OTA Update: " + percent + "% - " + message);
+            }
+
+            @Override
+            public void onSuccess(String message) {
+                result[0] = "{\"ok\":true,\"status\":\"success\",\"message\":\"" + escape(message) + "\"}";
+                latch.countDown();
+            }
+
+            @Override
+            public void onError(String error) {
+                result[0] = "{\"ok\":false,\"error\":\"" + escape(error) + "\"}";
+                latch.countDown();
+            }
+        });
+
+        try {
+            latch.await(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {}
+
+        return result[0] != null ? result[0] : "{\"ok\":true,\"status\":\"staged\"}";
+    }
+
     private static String escape(String s) {
         if (s == null) return "";
         return s.replace("\\", "\\\\")
